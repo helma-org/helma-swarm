@@ -67,8 +67,8 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
      * Called when a transaction is committed that has created, modified or 
      * deleted one or more nodes.
      */
-    public void nodesChanged(List inserted, List updated, List deleted) {
-        connector.sendNotification(inserted, updated, deleted);
+    public void nodesChanged(List inserted, List updated, List deleted, List parents) {
+        connector.sendNotification(inserted, updated, deleted, parents);
     }
 
     /**
@@ -217,15 +217,17 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
             return null;
         }
 
-        public void sendNotification(List inserted, List updated, List deleted) {
+        public void sendNotification(List inserted, List updated, List deleted, List parents) {
             if (!inserted.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
                 HashSet keys = new HashSet();
+                HashSet parentKeys = new HashSet();
                 HashSet types = new HashSet();
                 collectUpdates(inserted, keys, types);
                 collectUpdates(updated, keys, types);
                 collectUpdates(deleted, keys, types);
+                collectUpdates(parents, parentKeys, null);
                 app.logEvent("HelmaSwarm: Sending invalidation for "+keys+", "+types);
-                InvalidationList list = new InvalidationList(address, keys, types);
+                InvalidationList list = new InvalidationList(address, keys, parentKeys, types);
                 bus.sendNotification(list);
             }
         }
@@ -249,6 +251,13 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
                 Node node = (Node) cache.remove(list.keys[i]);
                 if (node != null) {
                     node.setState(Node.INVALID);
+                }
+            }
+            long now = System.currentTimeMillis();
+            for (int i=0; i<list.parentKeys.length; i++) {
+                Node node = (Node) cache.get(list.parentKeys[i]);
+                if (node != null) {
+                    node.setLastSubnodeChange(now);
                 }
             }
         }
@@ -288,7 +297,7 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
                 Node node = (Node) list.get(i);
                 keys.add(node.getKey());
                 DbMapping dbm = node.getDbMapping();
-                if (dbm != null) {
+                if (types != null && dbm != null) {
                     types.add(dbm.getTypeName());
                 }
             }
@@ -298,11 +307,13 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
     static class InvalidationList implements Serializable {
         Address address;
         Object[] keys;
+        Object[] parentKeys;
         String[] types;
         
-        public InvalidationList(Address address, HashSet keys, HashSet types) {
+        public InvalidationList(Address address, HashSet keys, HashSet parentKeys, HashSet types) {
             this.address = address;
             this.keys = keys.toArray();
+            this.parentKeys = parentKeys.toArray();
             this.types = (String[]) types.toArray(new String[types.size()]);
         }
     }

@@ -9,13 +9,8 @@ rather than by propagating them.
 Requirements
 ============
 
-HelmaSwarm requires a Helma snapshot from October 26, 2004 or later.
-
-Known bugs and limitions
-========================
-
-HelmaSwarm currently does not propagate changes in collections with 
-cachemode=aggressive set. 
+This version of HelmaSwarm requires a Helma snapshot from 
+November 25, 2004 or later.
 
 Building
 ========
