@@ -26,8 +26,8 @@ import org.jgroups.blocks.PullPushAdapter;
 import org.jgroups.*;
 import org.apache.commons.logging.Log;
 
-public class SwarmIDGenerator implements IDGenerator, MessageListener,
-                                         MembershipListener, RequestHandler {
+public class SwarmIDGenerator implements IDGenerator, MembershipListener,
+                                         RequestHandler {
 
     Application app;
     NodeManager nmgr;
@@ -46,7 +46,7 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
         log = app.getLogger(logName);
         try {
             PullPushAdapter adapter = ChannelUtils.getAdapter(app);
-            dispatcher = new MessageDispatcher(adapter, ChannelUtils.IDGEN, this, this, this);
+            dispatcher = new MessageDispatcher(adapter, ChannelUtils.IDGEN, null, this, this);
             Channel channel = (Channel) adapter.getTransport();
             channel.setOpt(Channel.VIEW, Boolean.TRUE);
             address = channel.getLocalAddress();
@@ -80,7 +80,7 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
                 return nmgr.doGenerateID(dbmap);
             }
             Message msg = new Message(coordinator, address, typeName);
-            Object response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 10000);
+            Object response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 8000);
             log.info("SwarmIDGenerator: Received ID " + response + " for " + dbmap);
             if (response != null) {
                 return (String) response;
@@ -95,7 +95,7 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
             try {
                 Object obj = msg.getObject();
                 DbMapping dbmap = obj == null ? null : nmgr.getDbMapping(obj.toString());
-                log.info("SwarmIDGenerator: Processing ID request for " + dbmap);
+                log.debug("SwarmIDGenerator: Processing ID request for " + dbmap);
                 return nmgr.doGenerateID(dbmap);
             } catch (Exception x) {
                 log.error("SwarmIDGenerator: Error in central ID generator", x);
@@ -115,19 +115,6 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
 
     public void block() {
         log.info("SwarmIDGenerator: Got block");
-    }
-
-    public void receive(Message message) {
-        // not used
-    }
-
-    public byte[] getState() {
-        // state transfer not used
-        return null;
-    }
-
-    public void setState(byte[] bytes) {
-        // state transfer not used
     }
 
 }
