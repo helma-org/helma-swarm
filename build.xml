@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+
+<project name="HelmaSwarm" default="jar" basedir=".">
+
+    <target name="init">
+        <loadproperties srcFile="build.properties"/>
+    </target>
+        
+    <target name="usage">
+        <echo message=""/>
+        <echo message=""/>
+        <echo message="HelmaSwarm"/>
+        <echo message="-------------------------------------------------------------"/>
+        <echo message=""/>
+        <echo message=" available targets are:"/>
+        <echo message=""/>
+        <echo message=" compile    --> compiles the source code to ./classes"/>
+        <echo message=" jar        --> generates and installs the jar file"/>
+        <echo message=" usage      --> provides help on using the build tool"/>
+        <echo message=" dist       --> creates a zip file for distribution"/>
+        <echo message=""/>
+        <echo message="-------------------------------------------------------------"/>
+        <echo message=""/>
+        <echo message=""/>
+    </target>
+
+    <target name="compile" depends="init">
+        <mkdir dir="classes"/>
+        <javac srcdir="src"
+               destdir="classes">
+            <classpath>
+                <pathelement location="${helma.install.dir}/lib/helma.jar"/>
+                <pathelement location="lib/jgroups-all.jar"/>
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="jar" depends="init,compile">
+        <jar jarfile="helmaSwarm.jar"
+            basedir="classes"
+            excludes="**/package.html"/>
+        <copy file="helmaSwarm.jar" 
+            todir="${helma.install.dir}/lib/ext/" />
+        <copy file="lib/jgroups-all.jar" 
+            todir="${helma.install.dir}/lib/ext/" />
+    </target>
+
+    <target name="dist">
+        <zip zipfile="helmaSwarm.zip">
+            <zipfileset dir="." prefix="helmaswarm" 
+                includes="**" excludes="*.zip,**/*~,classes/**"/>
+        </zip>
+    </target>
+
+</project>
