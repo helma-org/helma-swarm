@@ -187,7 +187,9 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
 
         private String mcast_ip = "224.0.0.132";
         private String mcast_port = "22023";
-        private String mcast_ttl = "32";
+        private String ip_ttl = "32";
+        private String bind_port = "48848";
+        private String port_range = "1000";
 
         private NotificationBus bus;
         private Address address;
@@ -266,7 +268,16 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
             b.append(";mcast_port=");
             b.append(app.getProperty("helmaswarm.multicast_port", mcast_port));
             b.append(";ip_ttl=");
-            b.append(app.getProperty("helmaswarm.multicast_ttl", mcast_ttl));
+            b.append(app.getProperty("helmaswarm.ip_ttl", ip_ttl));
+            b.append(";bind_port=");
+            b.append(app.getProperty("helmaswarm.bind_port", bind_port));
+            b.append(";port_range=");
+            b.append(app.getProperty("helmaswarm.port_range", port_range));
+            String bind_addr = app.getProperty("helmaswarm.bind_addr");
+            if (bind_addr != null) {
+                b.append(";bind_addr=");
+                b.append(bind_addr);
+            }
             b.append(";");
             b.append(groupPropsSuffix);
             return b.toString();

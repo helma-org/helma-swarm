@@ -2,7 +2,9 @@ HelmaSwarm
 ==========
 
 HelmaSwarm is a distributed ObjectCache implementation for Helma clusters 
-based on JGroups. 
+based on JGroups. HelmaSwarm is similar to the traditional Helma cache 
+replication hack, but clears dirty and deleted objects by evicting them 
+rather than by propagating them.
 
 Requirements
 ============
@@ -41,9 +43,23 @@ By default, HelmaSwarm will use port 22023 on multicast address 224.0.0.132.
 To use a different port or address or change the default ttl of 32, use the 
 following properties:
 
+  # multicast ip address
   helmaswarm.multicast_ip = 224.0.0.132
+
+  # multicast port
   helmaswarm.multicast_port = 22023
-  helmaswarm.multicast_ttl = 32
+
+  # time-to-live for multicast IP packets
+  helmaswarm.ip_ttl = 32
+
+  # address of network interface to use
+  helmaswarm.bind_addr = 192.168.0.123
+
+  # port to listen on
+  helmaswarm.bind_port = 48848
+
+  # port range to use
+  helmaswarm.port_range = 1000
 
 Credits & Feedback
 ==================
