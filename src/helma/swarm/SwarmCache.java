@@ -14,7 +14,7 @@
  * $Date$
  */
 
-package helma.objectmodel.swarm;
+package helma.swarm;
 
 import helma.objectmodel.ObjectCache;
 import helma.objectmodel.db.DbMapping;
@@ -33,7 +33,7 @@ import java.util.Properties;
 import java.util.List;
 import java.util.ArrayList;
 
-public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
+public class SwarmCache implements ObjectCache, NodeChangeListener {
 
     CacheMap cache;
 
@@ -197,7 +197,7 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
         public Connector() {
             try {
                 String groupProps = getJGroupProperties();
-                bus = new NotificationBus("HelmaSwarm", groupProps);
+                bus = new NotificationBus("swarm_objectcache", groupProps);
                 bus.start();
                 bus.getChannel().setOpt(Channel.AUTO_RECONNECT, new Boolean(true));
                 bus.setConsumer(this);

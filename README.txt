@@ -32,7 +32,7 @@ Configuration
 To enable the distributed HelmaSwarm cache for one of your applications,
 add the following property to its app.properties file:
 
-  cacheimpl = helma.objectmodel.swarm.HelmaSwarmCache
+  cacheimpl = helma.swarm.SwarmCache
 
 By default, HelmaSwarm will use port 22023 on multicast address 224.0.0.132.
 To use a different port or address or change the default ttl of 32, use the 
