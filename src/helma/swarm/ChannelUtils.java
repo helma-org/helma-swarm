@@ -19,9 +19,20 @@ import org.jgroups.JChannel;
 import org.jgroups.Channel;
 import org.jgroups.ChannelException;
 import org.jgroups.blocks.PullPushAdapter;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.Node;
 import helma.framework.core.Application;
+import helma.framework.repository.Repository;
+import helma.framework.repository.Resource;
+import helma.framework.repository.FileResource;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
 import java.util.WeakHashMap;
+import java.util.Iterator;
+import java.io.File;
 
 public class ChannelUtils {
 
@@ -38,26 +49,8 @@ public class ChannelUtils {
         PullPushAdapter adapter = (PullPushAdapter) adapters.get(app);
 
         if (adapter == null) {
-            StringBuffer b = new StringBuffer(groupPropsPrefix);
-            b.append("mcast_addr=");
-            b.append(app.getProperty("helmaswarm.multicast_ip", mcast_ip));
-            b.append(";mcast_port=");
-            b.append(app.getProperty("helmaswarm.multicast_port", mcast_port));
-            b.append(";ip_ttl=");
-            b.append(app.getProperty("helmaswarm.ip_ttl", ip_ttl));
-            b.append(";bind_port=");
-            b.append(app.getProperty("helmaswarm.bind_port", bind_port));
-            b.append(";port_range=");
-            b.append(app.getProperty("helmaswarm.port_range", port_range));
-            String bind_addr = app.getProperty("helmaswarm.bind_addr");
-            if (bind_addr != null) {
-                b.append(";bind_addr=");
-                b.append(bind_addr);
-            }
-            b.append(";");
-            b.append(groupPropsSuffix);
-
-            Channel channel = new JChannel(b.toString());
+            SwarmConfig config = new SwarmConfig(app);
+            Channel channel = new JChannel(config.getJGroupsProps());
             String groupName = app.getProperty("swarm.name", app.getName());
             channel.connect(groupName + "_swarm");
             adapter = new PullPushAdapter(channel);
@@ -79,13 +72,14 @@ public class ChannelUtils {
             adapter.stop();
         }
     }
+}
 
-    // jgroups properties. copied from swarmcache
-    final static String groupPropsPrefix = "UDP(";
-    // plus something like this created from app.properties:
-    // mcast_addr=231.12.21.132;mcast_port=45566;ip_ttl=32;
-    final static String groupPropsSuffix =
-            "mcast_send_buf_size=150000;mcast_recv_buf_size=80000):" +
+class SwarmConfig {
+
+    String jGroupsProps =
+            "UDP(mcast_addr=224.0.0.132;mcast_port=22024;ip_ttl=32;" +
+                "bind_port=48848;port_range=1000;" +
+                "mcast_send_buf_size=150000;mcast_recv_buf_size=80000):" +
             "PING(timeout=2000;num_initial_members=3):" +
             "MERGE2(min_interval=5000;max_interval=10000):" +
             "FD_SOCK:" +
@@ -97,9 +91,83 @@ public class ChannelUtils {
             "pbcast.GMS(join_timeout=5000;join_retry_timeout=2000;shun=false;print_local_addr=true):" +
             "pbcast.STATE_TRANSFER";
 
-    final static String mcast_ip = "224.0.0.132";
-    final static String mcast_port = "22024";
-    final static String ip_ttl = "32";
-    final static String bind_port = "48848";
-    final static String port_range = "1000";
+
+    public SwarmConfig (Application app) {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+
+        Resource res = null;
+
+        String conf = app.getProperty("swarm.config");
+
+        if (conf != null) {
+            res = new FileResource(new File(conf));
+        } else {
+            Iterator reps = app.getRepositories();
+            while (reps.hasNext()) {
+                Repository rep = (Repository) reps.next();
+                res = rep.getResource("helmaswarm.conf");
+                if (res != null)
+                    break;
+            }
+        }
+
+        if (res == null || !res.exists()) {
+            app.logEvent("Resource \"" + conf + "\" not found, using defaults");
+            return;
+        }
+
+        app.logEvent("HelmaSwarm: Reading config from " + res);
+
+        try {
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document document = builder.parse(res.getInputStream());
+            Element root = document.getDocumentElement();
+            NodeList nodes = root.getElementsByTagName("jgroups-stack");
+
+            if (nodes.getLength() == 0) {
+                app.logEvent("No JGroups stack found in helmaswarm.conf, using defaults");
+            } else {
+                NodeList jgroups = null;
+
+                String stackName = app.getProperty("swarm.jgroups.stack", "udp");
+                for (int i = 0; i < nodes.getLength(); i++) {
+                    Element elem = (Element) nodes.item(i);
+                    if (stackName.equalsIgnoreCase(elem.getAttribute("name"))) {
+                        jgroups = elem.getChildNodes();
+                        break;
+                    }
+                }
+                if (jgroups == null) {
+                    app.logEvent("JGroups stack \"" + stackName +
+                            "\" not found in helmaswarm.conf, using first element");
+                    jgroups = nodes.item(0).getChildNodes();
+                }
+
+                StringBuffer buffer = new StringBuffer();
+                for (int i = 0; i < jgroups.getLength(); i++) {
+                    Node node = jgroups.item(i);
+                    if (!"#text".equals(node.getNodeName())) {
+                        continue;
+                    }
+                    String str = node.toString();
+                    for (int j = 0; j < str.length(); j++) {
+                        char c = str.charAt(j);
+                        if (!Character.isWhitespace(c)) {
+                            buffer.append(c);
+                        }
+                    }
+                }
+                if (buffer.length() > 0) {
+                    jGroupsProps = buffer.toString();
+                }
+            }
+        } catch (Exception e) {
+            app.logError("HelmaSwarm: Error reading config from " + res, e);
+        }
+    }
+
+    public String getJGroupsProps() {
+        return jGroupsProps;
+    }
+
 }
