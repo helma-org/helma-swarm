@@ -33,6 +33,7 @@
             <classpath>
                 <pathelement location="${helma.install.dir}/lib/helma.jar"/>
                 <pathelement location="lib/jgroups-all.jar"/>
+                <pathelement location="lib/commons-logging.jar"/>
             </classpath>
         </javac>
     </target>
