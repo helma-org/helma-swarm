@@ -81,7 +81,9 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
     }
 
     public void shutdown() {
-        adapter.stop();
+        if (adapter != null) {
+            adapter.stop();
+        }
     }
 
 
