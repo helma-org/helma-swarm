@@ -15,9 +15,7 @@
  */
 package helma.swarm;
 
-import org.jgroups.JChannel;
-import org.jgroups.Channel;
-import org.jgroups.ChannelException;
+import org.jgroups.*;
 import org.jgroups.blocks.PullPushAdapter;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -72,6 +70,21 @@ public class ChannelUtils {
             adapter.stop();
         }
     }
+
+    public static boolean isMaster(Application app) {
+        PullPushAdapter adapter = (PullPushAdapter) adapters.get(app);
+        if (adapter != null) {
+            try {
+                Channel channel = (Channel) adapter.getTransport();
+                View view = channel.getView();
+                Address address = channel.getLocalAddress();
+                return address.equals(view.getMembers().firstElement());
+            } catch (Exception x) {
+                app.logError("ChannelUtils.isMaster()", x);
+            }
+        }
+        return false;
+    }
 }
 
 class SwarmConfig {
@@ -90,7 +103,6 @@ class SwarmConfig {
             "FRAG(frag_size=8096;down_thread=false;up_thread=false):" +
             "pbcast.GMS(join_timeout=5000;join_retry_timeout=2000;shun=false;print_local_addr=true):" +
             "pbcast.STATE_TRANSFER";
-
 
     public SwarmConfig (Application app) {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -161,6 +173,7 @@ class SwarmConfig {
                     jGroupsProps = buffer.toString();
                 }
             }
+
         } catch (Exception e) {
             app.logError("HelmaSwarm: Error reading config from " + res, e);
         }
