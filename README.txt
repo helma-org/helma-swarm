@@ -1,6 +1,8 @@
 HelmaSwarm
 ==========
 
+// FIXME: update description to include SwarmSessionManager
+
 HelmaSwarm is a distributed ObjectCache implementation for Helma clusters 
 based on JGroups. HelmaSwarm is similar to the traditional Helma cache 
 replication hack, but clears dirty and deleted objects by evicting them 
@@ -10,7 +12,7 @@ Requirements
 ============
 
 This version of HelmaSwarm requires a Helma snapshot from 
-November 25, 2004 or later.
+March 18, 2005 or later.
 
 Building
 ========
@@ -32,7 +34,11 @@ Configuration
 To enable the distributed HelmaSwarm cache for one of your applications,
 add the following property to its app.properties file:
 
-  cacheimpl = helma.swarm.SwarmCache
+  cacheImpl = helma.swarm.SwarmCache
+
+To enable HTTP session replication, add:
+
+  sessionManagerImpl = helma.swarm.SwarmSessionManager
 
 By default, HelmaSwarm will use port 22023 on multicast address 224.0.0.132.
 To use a different port or address or change the default ttl of 32, use the 
