@@ -312,7 +312,6 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             this.keys = keys.toArray();
             this.parentKeys = parentKeys.toArray();
             this.types = (String[]) types.toArray(new String[types.size()]);
-            System.err.println("BUILT INVALIDATION LIST: " + keys +", "+parentKeys+", "+types);
         }
     }
 
@@ -390,13 +389,22 @@ class CacheDomain {
         filters = (CacheFilter[]) list.toArray(filters);
     }
 
-    public boolean check(INode node) {
+    public boolean check(Node node) {
         if (filters.length == 0) {
             return true;
         }
 
+        // get persistent parent in case this is a collection or group node
+        Node mainNode = node.getNonVirtualParent();
+        if (mainNode == node) {
+            mainNode = null;
+        }
+
         for (int i = 0; i < filters.length; i++) {
             if (filters[i].check(node)) {
+                return true;
+            }
+            if (mainNode != null && filters[i].check(mainNode)) {
                 return true;
             }
         }
@@ -417,10 +425,13 @@ class CacheFilter {
         value = elem.getAttribute("value");
     }
 
-    public boolean check(INode node) {
+    public boolean check(Node node) {
         if (prototype != null &&
                 !prototype.equalsIgnoreCase(node.getPrototype())) {
-            return false;
+            DbMapping dbmap = node.getDbMapping();
+            if (dbmap != null && !dbmap.isInstanceOf(prototype)) {
+                return false;
+            }
         }
 
         if (property != null && value != null &&
