@@ -17,7 +17,6 @@
 package helma.swarm;
 
 import helma.objectmodel.ObjectCache;
-import helma.objectmodel.INode;
 import helma.objectmodel.db.DbMapping;
 import helma.objectmodel.db.Node;
 import helma.objectmodel.db.NodeChangeListener;
@@ -75,7 +74,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
                 adapter.registerListener(ChannelUtils.CACHE, this);
             } else {
                 for (int i = 0; i < domains.length; i++) {
-                    log.info("BINDING CACHE TO " + domains[i].name);
+                    log.info("Binding SwarmCache to " + domains[i].name);
                     adapter.registerListener(domains[i].name, this);
                 }
             }
@@ -117,7 +116,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
                 broadcastNodeChange(null, inserted, updated, deleted, parents);
             } else {
                 for (int i = 0; i < domains.length; i++) {
-                    log.info("BROADCASTING TO " + domains[i].name);
+                    log.info("Broadcasting to " + domains[i].name);
                     broadcastNodeChange(domains[i], inserted, updated, deleted, parents);
                 }
             }
