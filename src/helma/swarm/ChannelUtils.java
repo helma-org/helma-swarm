@@ -114,7 +114,7 @@ class SwarmConfig {
         if (conf != null) {
             res = new FileResource(new File(conf));
         } else {
-            Iterator reps = app.getRepositories();
+            Iterator reps = app.getRepositories().iterator();
             while (reps.hasNext()) {
                 Repository rep = (Repository) reps.next();
                 res = rep.getResource("helmaswarm.conf");
