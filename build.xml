@@ -27,7 +27,9 @@
     <target name="compile" depends="init">
         <mkdir dir="classes"/>
         <javac srcdir="src"
-               destdir="classes">
+               destdir="classes"
+               debug="on"
+               optimize="on">
             <classpath>
                 <pathelement location="${helma.install.dir}/lib/helma.jar"/>
                 <pathelement location="lib/jgroups-all.jar"/>
