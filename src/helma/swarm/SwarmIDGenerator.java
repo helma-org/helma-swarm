@@ -80,7 +80,7 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
                 return nmgr.doGenerateID(dbmap);
             }
             Message msg = new Message(coordinator, address, typeName);
-            Object response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 2000);
+            Object response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 10000);
             log.info("SwarmIDGenerator: Received ID " + response + " for " + dbmap);
             if (response != null) {
                 return (String) response;
