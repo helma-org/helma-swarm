@@ -22,13 +22,13 @@ import helma.framework.core.Application;
 
 public class ChannelUtils {
 
-    public static Channel createChannel(Application app)
+    public static Channel createChannel(Application app, int port)
             throws ChannelException {
         StringBuffer b = new StringBuffer(groupPropsPrefix);
         b.append("mcast_addr=");
         b.append(app.getProperty("helmaswarm.multicast_ip", mcast_ip));
         b.append(";mcast_port=");
-        b.append(app.getProperty("helmaswarm.multicast_port", mcast_port));
+        b.append(app.getProperty("helmaswarm.multicast_port", Integer.toString(port)));
         b.append(";ip_ttl=");
         b.append(app.getProperty("helmaswarm.ip_ttl", ip_ttl));
         b.append(";bind_port=");

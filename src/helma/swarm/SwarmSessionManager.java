@@ -35,8 +35,7 @@ import helma.objectmodel.db.NodeHandle;
 import helma.objectmodel.INode;
 import helma.objectmodel.TransientNode;
 
-public class SwarmSessionManager extends SessionManager
-        implements MessageListener, MembershipListener {
+public class SwarmSessionManager extends SessionManager implements MessageListener {
 
     PullPushAdapter adapter;
     Address address;
@@ -52,11 +51,12 @@ public class SwarmSessionManager extends SessionManager
                                   .append(".swarm")
                                   .toString();
         log = app.getLogger(logName);
+        String groupName = app.getProperty("swarm.name", app.getName());
         try {
-            Channel channel = ChannelUtils.createChannel(app);
-            channel.connect("swarm_session");
+            Channel channel = ChannelUtils.createChannel(app, 22025);
+            channel.connect("swarm_session_" + groupName);
+            adapter = new PullPushAdapter(channel, this);
             address = channel.getLocalAddress();
-            adapter = new PullPushAdapter(channel, this, this);
             channel.setOpt(Channel.GET_STATE_EVENTS, Boolean.TRUE);
             channel.setOpt(Channel.AUTO_GETSTATE, Boolean.TRUE);
             if (!channel.getState(null, 0)) {
@@ -214,20 +214,6 @@ public class SwarmSessionManager extends SessionManager
             app.releaseEvaluator(reval);
         }
     }
-
-
-    public void viewAccepted(View view) {
-        // log.debug("SESSION MGR: GOT VIEW_ACCEPTED()");
-    }
-
-    public void suspect(Address address) {
-        // log.debug("SESSION MGR: GOT SUSPECT()");
-    }
-
-    public void  block() {
-        // log.debug("SESSION MGR: GOT BLOCK()");
-    }
-
 
     static class UpdateList implements Serializable {
         Address address;
