@@ -58,11 +58,10 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
                                   .append(".swarm")
                                   .toString();
         log = app.getLogger(logName);
-        String groupName = app.getProperty("swarm.name", app.getName());
         try {
-            Channel channel = ChannelUtils.createChannel(app, 22024);
-            channel.connect("swarm_cache_" + groupName);
-            adapter = new PullPushAdapter(channel, this);
+            adapter = ChannelUtils.getAdapter(app);
+            adapter.registerListener(ChannelUtils.CACHE, this);
+            Channel channel = (Channel) adapter.getTransport();
             address = channel.getLocalAddress();
         } catch (Exception e) {
             log.error("SwarmCache: Error starting/joining channel", e);
@@ -101,7 +100,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             }
             InvalidationList list = new InvalidationList(keys, parentKeys, types);
             try {
-                adapter.send(new Message(null, address, list));
+                adapter.send(ChannelUtils.CACHE, new Message(null, address, list));
             } catch (Exception x) {
                 log.error("SwarmCache: Error sending invalidation list", x);
             }

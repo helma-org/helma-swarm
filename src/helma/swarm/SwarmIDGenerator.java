@@ -22,8 +22,8 @@ import helma.framework.core.Application;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.GroupRequest;
+import org.jgroups.blocks.PullPushAdapter;
 import org.jgroups.*;
-import org.jgroups.util.RspList;
 import org.apache.commons.logging.Log;
 
 public class SwarmIDGenerator implements IDGenerator, MessageListener,
@@ -42,12 +42,11 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
                                   .append(".swarm")
                                   .toString();
         log = app.getLogger(logName);
-        String groupName = app.getProperty("swarm.name", app.getName());
         try {
-            Channel channel = ChannelUtils.createChannel(app, 22026);
-            channel.connect("swarm_idgen_" + groupName);
+            PullPushAdapter adapter = ChannelUtils.getAdapter(app);
+            dispatcher = new MessageDispatcher(adapter, ChannelUtils.IDGEN, this, this, this);
+            Channel channel = (Channel) adapter.getTransport();
             channel.setOpt(Channel.VIEW, Boolean.TRUE);
-            dispatcher = new MessageDispatcher(channel, null, this, this);
             address = channel.getLocalAddress();
             view = channel.getView();
             log.info("SwarmIDGenerator: Got initial view: " + view);
@@ -78,11 +77,10 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
                 return nmgr.doGenerateID(dbmap);
             }
             Message msg = new Message(coordinator, address, typeName);
-            RspList response = dispatcher.castMessage(null, msg, GroupRequest.GET_FIRST, 2000);
-            log.info("SwarmIDGenerator: Received ID " + response.getFirst() +
-                     " for " + dbmap);
-            if (response.getFirst() != null) {
-                return (String) response.getFirst();
+            Object response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 2000);
+            log.info("SwarmIDGenerator: Received ID " + response + " for " + dbmap);
+            if (response != null) {
+                return (String) response;
             }
         }
         throw new RuntimeException("SwarmIDGenerator: Unable to get ID from group coordinator");

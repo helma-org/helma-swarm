@@ -18,31 +18,54 @@ package helma.swarm;
 import org.jgroups.JChannel;
 import org.jgroups.Channel;
 import org.jgroups.ChannelException;
+import org.jgroups.blocks.PullPushAdapter;
 import helma.framework.core.Application;
+
+import java.util.WeakHashMap;
 
 public class ChannelUtils {
 
-    public static Channel createChannel(Application app, int port)
+    // weak hashmap for pull-push-adapters
+    static WeakHashMap adapters = new WeakHashMap();
+
+    // Ids for multiplexing PullPushAdapter.
+    // SwarmSessionManager acts as main listener so it can use state exchange. 
+    final static Integer CACHE = new Integer(1);
+    final static Integer IDGEN = new Integer(2);
+
+    public static PullPushAdapter getAdapter(Application app)
             throws ChannelException {
-        StringBuffer b = new StringBuffer(groupPropsPrefix);
-        b.append("mcast_addr=");
-        b.append(app.getProperty("helmaswarm.multicast_ip", mcast_ip));
-        b.append(";mcast_port=");
-        b.append(app.getProperty("helmaswarm.multicast_port", Integer.toString(port)));
-        b.append(";ip_ttl=");
-        b.append(app.getProperty("helmaswarm.ip_ttl", ip_ttl));
-        b.append(";bind_port=");
-        b.append(app.getProperty("helmaswarm.bind_port", bind_port));
-        b.append(";port_range=");
-        b.append(app.getProperty("helmaswarm.port_range", port_range));
-        String bind_addr = app.getProperty("helmaswarm.bind_addr");
-        if (bind_addr != null) {
-            b.append(";bind_addr=");
-            b.append(bind_addr);
+        PullPushAdapter adapter = (PullPushAdapter) adapters.get(app);
+
+        if (adapter == null) {
+            StringBuffer b = new StringBuffer(groupPropsPrefix);
+            b.append("mcast_addr=");
+            b.append(app.getProperty("helmaswarm.multicast_ip", mcast_ip));
+            b.append(";mcast_port=");
+            b.append(app.getProperty("helmaswarm.multicast_port", mcast_port));
+            b.append(";ip_ttl=");
+            b.append(app.getProperty("helmaswarm.ip_ttl", ip_ttl));
+            b.append(";bind_port=");
+            b.append(app.getProperty("helmaswarm.bind_port", bind_port));
+            b.append(";port_range=");
+            b.append(app.getProperty("helmaswarm.port_range", port_range));
+            String bind_addr = app.getProperty("helmaswarm.bind_addr");
+            if (bind_addr != null) {
+                b.append(";bind_addr=");
+                b.append(bind_addr);
+            }
+            b.append(";");
+            b.append(groupPropsSuffix);
+
+            Channel channel = new JChannel(b.toString());
+            String groupName = app.getProperty("swarm.name", app.getName());
+            channel.connect(groupName + "_swarm");
+            adapter = new PullPushAdapter(channel);
+            adapter.start();
+            adapters.put(app, adapter);
         }
-        b.append(";");
-        b.append(groupPropsSuffix);
-        return new JChannel(b.toString());
+
+        return adapter;
     }
 
 

@@ -21,7 +21,6 @@ import org.jgroups.blocks.PullPushAdapter;
 import org.apache.commons.logging.Log;
 
 import java.io.*;
-import java.util.List;
 import java.util.Map;
 import java.util.Iterator;
 import java.util.Hashtable;
@@ -51,14 +50,15 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
                                   .append(".swarm")
                                   .toString();
         log = app.getLogger(logName);
-        String groupName = app.getProperty("swarm.name", app.getName());
         try {
-            Channel channel = ChannelUtils.createChannel(app, 22025);
-            channel.connect("swarm_session_" + groupName);
-            adapter = new PullPushAdapter(channel, this);
-            address = channel.getLocalAddress();
+            adapter = ChannelUtils.getAdapter(app);
+            Channel channel = (Channel) adapter.getTransport();
+            // enable state exchange
             channel.setOpt(Channel.GET_STATE_EVENTS, Boolean.TRUE);
             channel.setOpt(Channel.AUTO_GETSTATE, Boolean.TRUE);
+            address = channel.getLocalAddress();
+            // register us as main message listeners so we can exchange state
+            adapter.setListener(this);
             if (!channel.getState(null, 0)) {
                 log.debug("Couldn't get session state. First instance in swarm?");
             }
@@ -89,11 +89,11 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
 
     public void discardSession(Session session) {
         super.discardSession(session);
-        broadcast(new DiscardSessionEvent(session.getSessionId()));
+        broadcast(new DiscardSession(session.getSessionId()));
     }
 
     public void touchSession(Session session) {
-        broadcast(new TouchSessionEvent(session.getSessionId()));
+        broadcast(new TouchSession(session.getSessionId()));
     }
 
     ///////////////////////////////////////////////////////////////
@@ -107,9 +107,9 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
 
         Object object = msg.getObject();
         log.debug("Received object: " + object);
-        if (object instanceof UpdateSessionEvent) {
+        if (object instanceof UpdateSession) {
             try {
-                UpdateSessionEvent update = (UpdateSessionEvent) object;
+                UpdateSession update = (UpdateSession) object;
                 Session session = getSession(update.sessionId);
                 if (session == null) {
                     session = createSession(update.sessionId);
@@ -124,20 +124,11 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
             } catch (Exception x) {
                 log.error("Error in session deserialization", x);
             }
-        } else if (object instanceof UpdateList) {
-            UpdateList list = (UpdateList) object;
-
-            for (int i = 0; i < list.touched.length; i++) {
-               // TODO: implement bulk session update
-            }
-            for (int i = 0; i < list.discarded.length; i++) {
-                // TODO: implement bulk session update
-            }
-        } else if (object instanceof DiscardSessionEvent) {
+        } else if (object instanceof DiscardSession) {
             // TODO: implement staged session dump
             sessions.remove(object.toString());
             log.debug("Discarded session: " + object);
-        } else if (object instanceof TouchSessionEvent) {
+        } else if (object instanceof TouchSession) {
             Session session = getSession(object.toString());
             if (session instanceof SwarmSession) {
                 ((SwarmSession) session).replicatedTouch();
@@ -156,7 +147,9 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
             log.error("Error in getState()", x);
             throw new RuntimeException("Error in getState(): "+x);
         } finally {
-            log.debug("Returned session table: " + map);
+            if (log.isDebugEnabled()) {
+                log.debug("Returned session table: " + map);
+            }
             app.releaseEvaluator(reval);
         }
     }
@@ -164,15 +157,17 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
     public void setState(byte[] bytes) {
         if (bytes != null) {
             try {
-            Hashtable map = (Hashtable) bytesToObject(bytes);
-            Iterator it = map.values().iterator();
-            while (it.hasNext()) {
-                SwarmSession session = (SwarmSession) it.next();
-                session.setApp(app);
-                session.sessionMgr = SwarmSessionManager.this;
-            }
-            sessions = map;
-            log.debug("Received session: " + map);
+                Hashtable map = (Hashtable) bytesToObject(bytes);
+                Iterator it = map.values().iterator();
+                while (it.hasNext()) {
+                    SwarmSession session = (SwarmSession) it.next();
+                    session.setApp(app);
+                    session.sessionMgr = SwarmSessionManager.this;
+                }
+                sessions = map;
+                if (log.isDebugEnabled()) {
+                    log.debug("Received session: " + map);
+                }
             } catch (Exception x) {
                 log.error ("Error in setState()", x);
             }
@@ -182,7 +177,7 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
     void broadcastSession(SwarmSession session, RequestEvaluator reval) {
         log.debug("Broadcasting changed session: " + session);
         try {
-            UpdateSessionEvent update = new UpdateSessionEvent(session, reval);
+            UpdateSession update = new UpdateSession(session, reval);
             adapter.send(new Message(null, address, update));
         } catch (Exception x) {
             log.error("Error in session replication", x);
@@ -217,22 +212,10 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
         }
     }
 
-    static class UpdateList implements Serializable {
-        Address address;
-        Object[] touched;
-        Object[] discarded;
-
-        public UpdateList(Address address, List touched, List discarded) {
-            this.address = address;
-            this.touched = touched.toArray();
-            this.discarded = discarded.toArray();
-        }
-    }
-
-    static class TouchSessionEvent implements Serializable {
+    static class TouchSession implements Serializable {
         String sessionId;
 
-        TouchSessionEvent(String id) {
+        TouchSession(String id) {
             this.sessionId = id;
         }
 
@@ -241,10 +224,10 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
         }
     }
 
-    static class DiscardSessionEvent implements Serializable {
+    static class DiscardSession implements Serializable {
         String sessionId;
 
-        DiscardSessionEvent(String id) {
+        DiscardSession(String id) {
             this.sessionId = id;
         }
 
@@ -253,13 +236,13 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
         }
     }
 
-    static class UpdateSessionEvent implements Serializable {
+    static class UpdateSession implements Serializable {
         String sessionId;
         String message;
         NodeHandle userHandle;
         byte[] cacheNode = null;
 
-        UpdateSessionEvent(SwarmSession session, RequestEvaluator reval)
+        UpdateSession(SwarmSession session, RequestEvaluator reval)
                 throws IOException{
             this.sessionId = session.getSessionId();
             this.message = session.getMessage();
