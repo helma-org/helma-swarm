@@ -251,7 +251,7 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
             INode cacheNode = session.getCacheNode();
             // only transfer cache node if it has changed
             if (cacheNode.lastModified() != session.previousLastMod) {
-                this.cacheNode = objectToBytes(session, reval);
+                this.cacheNode = objectToBytes(session.getCacheNode(), reval);
             }
         }
 
