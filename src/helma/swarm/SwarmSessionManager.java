@@ -32,7 +32,8 @@ import helma.objectmodel.db.NodeHandle;
 import helma.objectmodel.INode;
 import helma.objectmodel.TransientNode;
 
-public class SwarmSessionManager extends SessionManager implements MessageListener, Runnable {
+public class SwarmSessionManager extends SessionManager
+                                 implements MessageListener, Runnable {
 
     // SessionIdList operation constants
     static final int TOUCH = 0;
