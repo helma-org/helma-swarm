@@ -12,7 +12,7 @@ Requirements
 ============
 
 This version of HelmaSwarm requires a Helma snapshot from 
-March 21, 2005 or later.
+March 25, 2005 or later.
 
 Building
 ========
