@@ -21,9 +21,7 @@ import org.jgroups.blocks.PullPushAdapter;
 import org.apache.commons.logging.Log;
 
 import java.io.*;
-import java.util.Map;
-import java.util.Iterator;
-import java.util.Hashtable;
+import java.util.*;
 
 import helma.framework.core.SessionManager;
 import helma.framework.core.Application;
@@ -34,11 +32,17 @@ import helma.objectmodel.db.NodeHandle;
 import helma.objectmodel.INode;
 import helma.objectmodel.TransientNode;
 
-public class SwarmSessionManager extends SessionManager implements MessageListener {
+public class SwarmSessionManager extends SessionManager implements MessageListener, Runnable {
+
+    // SessionIdList operation constants
+    static final int TOUCH = 0;
+    static final int DISCARD = 1;
 
     PullPushAdapter adapter;
     Address address;
     Log log;
+    volatile Thread runner;
+    HashSet touched = new HashSet(), discarded = new HashSet();
 
     ////////////////////////////////////////////////////////
     // SessionManager functionality
@@ -59,9 +63,13 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
             address = channel.getLocalAddress();
             // register us as main message listeners so we can exchange state
             adapter.setListener(this);
-            if (!channel.getState(null, 0)) {
+            if (!channel.getState(null, 5000)) {
                 log.debug("Couldn't get session state. First instance in swarm?");
             }
+            // start broadcaster thread
+            runner = new Thread(this);
+            runner.setDaemon(true);
+            runner.start();
         } catch (Exception e) {
             log.error("HelmaSwarm: Error starting/joining channel", e);
             e.printStackTrace();
@@ -85,16 +93,42 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
             adapter.setListener(null);
         }
         ChannelUtils.stopAdapter(app);
+
+        if (runner != null) {
+            Thread t = runner;
+            runner = null;
+            t.interrupt();
+        }
     }
 
 
     public void discardSession(Session session) {
         super.discardSession(session);
-        broadcast(new DiscardSession(session.getSessionId()));
+        if (((SwarmSession) session).isDistributed()) {
+            discarded.add(session.getSessionId());
+        }
     }
 
-    public void touchSession(Session session) {
-        broadcast(new TouchSession(session.getSessionId()));
+    public void touchSession(SwarmSession session) {
+        if (session.isDistributed()) {
+            touched.add(session.getSessionId());
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////
+    // Runnable
+
+    public void run() {
+        while(runner == Thread.currentThread()) {
+            try {
+                Thread.sleep(1000l);
+            } catch (InterruptedException x) {
+                log.info("SwarmSession: broadcast thread interrupted, exiting");
+                return;
+            }
+            broadcastIds(TOUCH, touched);
+            broadcastIds(DISCARD, discarded);
+        }
     }
 
     ///////////////////////////////////////////////////////////////
@@ -108,9 +142,19 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
 
         Object object = msg.getObject();
         log.debug("Received object: " + object);
-        if (object instanceof UpdateSession) {
+        if (object instanceof byte[]) {
             try {
-                UpdateSession update = (UpdateSession) object;
+                SwarmSession session = (SwarmSession) bytesToObject((byte[]) object);
+                session.setApp(app);
+                session.sessionMgr = this;
+                sessions.put(session.getSessionId(), session);
+                log.debug("Transfered session: " + session);
+            } catch (Exception x) {
+                log.error("Error in session deserialization", x);
+            }
+        } else if (object instanceof SessionUpdate) {
+            try {
+                SessionUpdate update = (SessionUpdate) object;
                 Session session = getSession(update.sessionId);
                 if (session == null) {
                     session = createSession(update.sessionId);
@@ -121,20 +165,28 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
                     Object cacheNode = bytesToObject(update.cacheNode);
                     session.setCacheNode((TransientNode) cacheNode);
                 }
-                log.debug("Transfered session: " + session);
+                log.debug("Transfered session update: " + session);
             } catch (Exception x) {
                 log.error("Error in session deserialization", x);
             }
-        } else if (object instanceof DiscardSession) {
-            // TODO: implement staged session dump
-            sessions.remove(object.toString());
-            log.debug("Discarded session: " + object);
-        } else if (object instanceof TouchSession) {
-            Session session = getSession(object.toString());
-            if (session instanceof SwarmSession) {
-                ((SwarmSession) session).replicatedTouch();
+        } else if (object instanceof SessionIdList) {
+            SessionIdList idlist = (SessionIdList) object;
+            Object[] ids = idlist.ids;
+            if (idlist.operation == DISCARD) {
+                // TODO: implement staged session dump
+                for (int i = 0; i < ids.length; i++) {
+                    sessions.remove(ids[i]);
+                    log.debug("Discarded session: " + ids[i]);
+                }
+            } else if (idlist.operation == TOUCH) {
+                for (int i = 0; i < ids.length; i++) {
+                    Object session = sessions.get(ids[i]);
+                    if (session instanceof SwarmSession) {
+                        ((SwarmSession) session).replicatedTouch();
+                        log.debug("Touched session: " + ids[i]);
+                    }
+                }
             }
-            log.debug("Touched session: " + object);
         }
     }
 
@@ -167,7 +219,7 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
                 }
                 sessions = map;
                 if (log.isDebugEnabled()) {
-                    log.debug("Received session: " + map);
+                    log.debug("Received session map: " + map);
                 }
             } catch (Exception x) {
                 log.error ("Error in setState()", x);
@@ -178,18 +230,30 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
     void broadcastSession(SwarmSession session, RequestEvaluator reval) {
         log.debug("Broadcasting changed session: " + session);
         try {
-            UpdateSession update = new UpdateSession(session, reval);
-            adapter.send(new Message(null, address, update));
+            if (session.isDistributed()) {
+                SessionUpdate update = new SessionUpdate(session, reval);
+                adapter.send(new Message(null, address, update));
+            } else {
+                session.setDistributed(true);
+                byte[] bytes = objectToBytes(session, reval);
+                adapter.send(new Message(null, address, (Serializable) bytes));
+            }
         } catch (Exception x) {
             log.error("Error in session replication", x);
         }
     }
 
-    void broadcast(Serializable object) {
-        try {
-            adapter.send(new Message(null, address, object));
-        } catch (Exception x) {
-            log.error("Error broadcasting session event", x);
+    void broadcastIds(int operation, Set idSet) {
+        if (!idSet.isEmpty()) {
+            Object[] ids = idSet.toArray();
+            for (int i=0; i<ids.length; i++)
+                idSet.remove(ids[i]);
+            Serializable idlist = new SessionIdList(operation, ids);
+            try {
+                adapter.send(new Message(null, address, idlist));
+            } catch (Exception x) {
+                log.error("Error broadcasting session list", x);
+            }
         }
     }
 
@@ -213,37 +277,23 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
         }
     }
 
-    static class TouchSession implements Serializable {
-        String sessionId;
+    static class SessionIdList implements Serializable {
+        int operation;
+        Object[] ids;
 
-        TouchSession(String id) {
-            this.sessionId = id;
-        }
-
-        public String toString() {
-            return sessionId;
+        SessionIdList(int operation, Object[] ids) {
+            this.operation = operation;
+            this.ids = ids;
         }
     }
 
-    static class DiscardSession implements Serializable {
-        String sessionId;
-
-        DiscardSession(String id) {
-            this.sessionId = id;
-        }
-
-        public String toString() {
-            return sessionId;
-        }
-    }
-
-    static class UpdateSession implements Serializable {
+    static class SessionUpdate implements Serializable {
         String sessionId;
         String message;
         NodeHandle userHandle;
         byte[] cacheNode = null;
 
-        UpdateSession(SwarmSession session, RequestEvaluator reval)
+        SessionUpdate(SwarmSession session, RequestEvaluator reval)
                 throws IOException{
             this.sessionId = session.getSessionId();
             this.message = session.getMessage();
@@ -254,7 +304,6 @@ public class SwarmSessionManager extends SessionManager implements MessageListen
                 this.cacheNode = objectToBytes(session.getCacheNode(), reval);
             }
         }
-
     }
 }
 

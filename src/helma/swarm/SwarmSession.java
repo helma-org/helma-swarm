@@ -23,10 +23,15 @@ import helma.objectmodel.db.NodeHandle;
 
 public class SwarmSession extends Session {
 
-    transient long previousLastMod;
-    NodeHandle previousUserHandle;
-    String previousMessage;
+    // distributed flag - true for replicated sessions
+    boolean distributed = false;
+
+    // swarm session manager reference
     transient SwarmSessionManager sessionMgr;
+    // transient helper fields to track changes
+    transient long previousLastMod;
+    transient NodeHandle previousUserHandle;
+    transient String previousMessage;
 
     public SwarmSession(String sessionId, Application app, SwarmSessionManager mgr) {
         super(sessionId, app);
@@ -46,11 +51,31 @@ public class SwarmSession extends Session {
     }
 
     public void commit(RequestEvaluator reval) {
-        if (cacheNode.lastModified() != previousLastMod ||
-                userHandle != previousUserHandle ||
-                message != previousMessage) {
+        if (wasModifiedInRequest()) {
             sessionMgr.broadcastSession(this, reval);
         }
     }
+
+    protected boolean isDistributed() {
+        return distributed;
+    }
+
+    protected void setDistributed(boolean distributed) {
+        this.distributed = distributed;
+    }
+
+    protected boolean wasModified() {
+        // true if either session state or cachenode have been modified in the past
+        return lastModified != onSince ||
+               cacheNode.created() != cacheNode.lastModified();
+    }
+
+    protected boolean wasModifiedInRequest() {
+        // true if session was modified since we last called touch() on it
+        return cacheNode.lastModified() != previousLastMod ||
+               userHandle != previousUserHandle ||
+               message != previousMessage;
+    }
+
 }
 
