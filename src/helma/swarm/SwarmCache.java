@@ -17,20 +17,28 @@
 package helma.swarm;
 
 import helma.objectmodel.ObjectCache;
+import helma.objectmodel.INode;
 import helma.objectmodel.db.DbMapping;
 import helma.objectmodel.db.Node;
 import helma.objectmodel.db.NodeChangeListener;
 import helma.framework.core.Application;
+import helma.framework.repository.Resource;
+import helma.framework.repository.FileResource;
+import helma.framework.repository.Repository;
 import helma.util.CacheMap;
 
 import org.jgroups.blocks.*;
 import org.jgroups.*;
 import org.apache.commons.logging.Log;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
 import java.io.Serializable;
-import java.util.HashSet;
-import java.util.Properties;
-import java.util.List;
+import java.io.File;
+import java.util.*;
 
 public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListener {
 
@@ -40,6 +48,8 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     PullPushAdapter adapter;
     Address address;
     Log log;
+
+    CacheDomain[] domains;
 
     /**
      * Initialize the cache client from the properties of our
@@ -58,9 +68,17 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
                                   .append(".swarm")
                                   .toString();
         log = app.getLogger(logName);
+        parseCacheDomains(app);
         try {
             adapter = ChannelUtils.getAdapter(app);
-            adapter.registerListener(ChannelUtils.CACHE, this);
+            if (domains.length == 0) {
+                adapter.registerListener(ChannelUtils.CACHE, this);
+            } else {
+                for (int i = 0; i < domains.length; i++) {
+                    log.info("BINDING CACHE TO " + domains[i].name);
+                    adapter.registerListener(domains[i].name, this);
+                }
+            }
             Channel channel = (Channel) adapter.getTransport();
             address = channel.getLocalAddress();
         } catch (Exception e) {
@@ -77,7 +95,13 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             cache.shutdown();
         }
         if (adapter != null) {
-            adapter.unregisterListener(ChannelUtils.CACHE);
+            if (domains.length == 0) {
+                adapter.unregisterListener(ChannelUtils.CACHE);
+            } else {
+                for (int i = 0; i < domains.length; i++) {
+                    adapter.unregisterListener(domains[i].name);
+                }
+            }
         }
         ChannelUtils.stopAdapter(app);
     }
@@ -89,28 +113,47 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     public void nodesChanged(List inserted, List updated,
                              List deleted, List parents) {
         if (!inserted.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
-            HashSet keys = new HashSet();
-            HashSet parentKeys = new HashSet();
-            HashSet types = new HashSet();
-            collectUpdates(inserted, keys, types);
-            collectUpdates(updated, keys, types);
-            collectUpdates(deleted, keys, types);
-            collectUpdates(parents, parentKeys, null);
-            if (log.isDebugEnabled()) {
-                log.debug("SwarmCache: Sending invalidation for " + keys + ", " + types);
-            }
-            InvalidationList list = new InvalidationList(keys, parentKeys, types);
-            try {
-                adapter.send(ChannelUtils.CACHE, new Message(null, address, list));
-            } catch (Exception x) {
-                log.error("SwarmCache: Error sending invalidation list", x);
+            if (domains.length == 0) {
+                broadcastNodeChange(null, inserted, updated, deleted, parents);
+            } else {
+                for (int i = 0; i < domains.length; i++) {
+                    log.info("BROADCASTING TO " + domains[i].name);
+                    broadcastNodeChange(domains[i], inserted, updated, deleted, parents);
+                }
             }
         }
     }
 
-    private void collectUpdates(List list, HashSet keys, HashSet types) {
+    void broadcastNodeChange(CacheDomain domain, List inserted, List updated,
+                             List deleted, List parents) {
+        HashSet keys = new HashSet();
+        HashSet parentKeys = new HashSet();
+        HashSet types = new HashSet();
+        collectUpdates(domain, inserted, keys, types);
+        collectUpdates(domain, updated, keys, types);
+        collectUpdates(domain, deleted, keys, types);
+        collectUpdates(domain, parents, parentKeys, null);
+        if (log.isDebugEnabled()) {
+            log.debug("SwarmCache: Sending invalidation for " + keys + ", " + types);
+        }
+        InvalidationList list = new InvalidationList(keys, parentKeys, types);
+        try {
+            if (domain == null) {
+                adapter.send(ChannelUtils.CACHE, new Message(null, address, list));
+            } else {
+                adapter.send(domain.name, new Message(null, address, list));
+            }
+        } catch (Exception x) {
+            log.error("SwarmCache: Error sending invalidation list", x);
+        }
+    }
+
+    private void collectUpdates(CacheDomain domain, List list, HashSet keys, HashSet types) {
         for (int i = 0; i < list.size(); i++) {
             Node node = (Node) list.get(i);
+            if (domain != null && !domain.check(node)) {
+                continue;
+            }
             keys.add(node.getKey());
             DbMapping dbm = node.getDbMapping();
             if (types != null && dbm != null) {
@@ -269,6 +312,127 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             this.keys = keys.toArray();
             this.parentKeys = parentKeys.toArray();
             this.types = (String[]) types.toArray(new String[types.size()]);
+            System.err.println("BUILT INVALIDATION LIST: " + keys +", "+parentKeys+", "+types);
         }
     }
+
+    void parseCacheDomains (Application app) {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+
+        Resource res = null;
+
+        String conf = app.getProperty("swarm.config");
+
+        if (conf != null) {
+            res = new FileResource(new File(conf));
+        } else {
+            Iterator reps = app.getRepositories();
+            while (reps.hasNext()) {
+                Repository rep = (Repository) reps.next();
+                res = rep.getResource("helmaswarm.conf");
+                if (res != null)
+                    break;
+            }
+        }
+
+        if (res == null || !res.exists()) {
+            app.logEvent("Resource \"" + conf + "\" not found, using defaults");
+            return;
+        }
+
+        app.logEvent("HelmaSwarm: Reading config from " + res);
+
+        try {
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document document = builder.parse(res.getInputStream());
+            Element root = document.getDocumentElement();
+
+            NodeList nodes = root.getElementsByTagName("cache-domain");
+            ArrayList list = new ArrayList();
+
+            if (nodes.getLength() > 0) {
+                for (int i = 0; i < nodes.getLength(); i++) {
+                    Element elem = (Element) nodes.item(i);
+                    CacheDomain domain = new CacheDomain(elem);
+                    if (domain.name == null) {
+                        app.logError("name attribute is null in cache-domain");
+                    } else {
+                        list.add(domain);
+                    }
+                }
+            }
+
+            domains = new CacheDomain[list.size()];
+            domains = (CacheDomain[]) list.toArray(domains);
+
+        } catch (Exception e) {
+            app.logError("HelmaSwarm: Error reading cache config from " + res, e);
+        }
+    }
+}
+
+class CacheDomain {
+
+    String name;
+    CacheFilter[] filters;
+
+    CacheDomain(Element elem) {
+        this.name = elem.getAttribute("name");
+
+        ArrayList list = new ArrayList();
+        NodeList nodes = elem.getElementsByTagName("filter");
+
+        for (int i = 0; i < nodes.getLength(); i++) {
+            list.add(new CacheFilter((Element) nodes.item(i)));
+        }
+
+        filters = new CacheFilter[list.size()];
+        filters = (CacheFilter[]) list.toArray(filters);
+    }
+
+    public boolean check(INode node) {
+        if (filters.length == 0) {
+            return true;
+        }
+
+        for (int i = 0; i < filters.length; i++) {
+            if (filters[i].check(node)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+class CacheFilter {
+
+    String prototype;
+    String property;
+    String value;
+
+    CacheFilter(Element elem) {
+        prototype = elem.getAttribute("prototype");
+        property = elem.getAttribute("property");
+        value = elem.getAttribute("value");
+    }
+
+    public boolean check(INode node) {
+        if (prototype != null &&
+                !prototype.equalsIgnoreCase(node.getPrototype())) {
+            return false;
+        }
+
+        if (property != null && value != null &&
+                !value.equals(node.getString(property))) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public String toString() {
+        return "CacheFilter[" + prototype + "," + property + "," + value + "]";
+    }
+
 }
