@@ -18,7 +18,6 @@ package helma.swarm;
 
 import helma.objectmodel.ObjectCache;
 import helma.objectmodel.db.DbMapping;
-import helma.objectmodel.db.DbKey;
 import helma.objectmodel.db.Node;
 import helma.objectmodel.db.NodeChangeListener;
 import helma.framework.core.Application;
@@ -26,20 +25,21 @@ import helma.util.CacheMap;
 
 import org.jgroups.blocks.*;
 import org.jgroups.*;
+import org.apache.commons.logging.Log;
 
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.List;
-import java.util.ArrayList;
 
-public class SwarmCache implements ObjectCache, NodeChangeListener {
+public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListener {
 
     CacheMap cache;
 
     Application app;
-    String cacheName;
-    Connector connector;
+    PullPushAdapter adapter;
+    Address address;
+    Log log;
 
     /**
      * Initialize the cache client from the properties of our
@@ -52,7 +52,22 @@ public class SwarmCache implements ObjectCache, NodeChangeListener {
         app.getNodeManager().addNodeChangeListener(this);
         // Configure and Initialize the cache
         cache = new CacheMap();
-        connector = new Connector();
+        // Set up the channel
+        String logName = new StringBuffer("helma.")
+                                  .append(app.getName())
+                                  .append(".swarm")
+                                  .toString();
+        log = app.getLogger(logName);
+        String groupName = app.getProperty("swarm.name", app.getName());
+        try {
+            Channel channel = ChannelUtils.createChannel(app, 22024);
+            channel.connect("swarm_cache_" + groupName);
+            adapter = new PullPushAdapter(channel, this);
+            address = channel.getLocalAddress();
+        } catch (Exception e) {
+            log.error("SwarmCache: Error starting/joining channel", e);
+            e.printStackTrace();
+        }
     }
 
     /** 
@@ -60,15 +75,44 @@ public class SwarmCache implements ObjectCache, NodeChangeListener {
      */
     public void shutdown() {
         cache.shutdown();
-        connector.stop();
+        adapter.stop();
     }
 
     /**
      * Called when a transaction is committed that has created, modified or 
      * deleted one or more nodes.
      */
-    public void nodesChanged(List inserted, List updated, List deleted, List parents) {
-        connector.sendNotification(inserted, updated, deleted, parents);
+    public void nodesChanged(List inserted, List updated,
+                             List deleted, List parents) {
+        if (!inserted.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
+            HashSet keys = new HashSet();
+            HashSet parentKeys = new HashSet();
+            HashSet types = new HashSet();
+            collectUpdates(inserted, keys, types);
+            collectUpdates(updated, keys, types);
+            collectUpdates(deleted, keys, types);
+            collectUpdates(parents, parentKeys, null);
+            if (log.isDebugEnabled()) {
+                log.debug("SwarmCache: Sending invalidation for " + keys + ", " + types);
+            }
+            InvalidationList list = new InvalidationList(keys, parentKeys, types);
+            try {
+                adapter.send(new Message(null, address, list));
+            } catch (Exception x) {
+                log.error("SwarmCache: Error sending invalidation list", x);
+            }
+        }
+    }
+
+    private void collectUpdates(List list, HashSet keys, HashSet types) {
+        for (int i = 0; i < list.size(); i++) {
+            Node node = (Node) list.get(i);
+            keys.add(node.getKey());
+            DbMapping dbm = node.getDbMapping();
+            if (types != null && dbm != null) {
+                types.add(dbm.getTypeName());
+            }
+        }
     }
 
     /**
@@ -166,152 +210,58 @@ public class SwarmCache implements ObjectCache, NodeChangeListener {
         return cache.getCachedObjects();
     }
 
-    
-    class Connector implements NotificationBus.Consumer {
-        
-        // jgroups properties. copied from swarmcache
-        final static String groupPropsPrefix =  "UDP(";
-        // plus something like this created from app.properties:
-        // mcast_addr=231.12.21.132;mcast_port=45566;ip_ttl=32;
-        final static String groupPropsSuffix = 
-            "mcast_send_buf_size=150000;mcast_recv_buf_size=80000):" +
-            "PING(timeout=2000;num_initial_members=3):" +
-            "MERGE2(min_interval=5000;max_interval=10000):" +
-            "FD_SOCK:" +
-            "VERIFY_SUSPECT(timeout=1500):" +
-            "pbcast.NAKACK(gc_lag=50;retransmit_timeout=300,600,1200,2400,4800):" +
-            "UNICAST(timeout=5000):" +
-            "pbcast.STABLE(desired_avg_gossip=20000):" +
-            "FRAG(frag_size=8096;down_thread=false;up_thread=false):" +
-            "pbcast.GMS(join_timeout=5000;join_retry_timeout=2000;shun=false;print_local_addr=true)";
-
-        private String mcast_ip = "224.0.0.132";
-        private String mcast_port = "22023";
-        private String ip_ttl = "32";
-        private String bind_port = "48848";
-        private String port_range = "1000";
-
-        private NotificationBus bus;
-        private Address address;
-        
-        public Connector() {
-            try {
-                String groupProps = getJGroupProperties();
-                bus = new NotificationBus("swarm_objectcache", groupProps);
-                bus.start();
-                bus.getChannel().setOpt(Channel.AUTO_RECONNECT, new Boolean(true));
-                bus.setConsumer(this);
-                address = bus.getLocalAddress();
-                app.logEvent("HelmaSwarm: Joined notification bus, local addres is "+address);
-            } catch (Exception e) {
-                app.logError("HelmaSwarm: Error starting/joining notification bus", e);
-                e.printStackTrace();
-            }
+    public void receive(Message message) {
+        if (address.equals(message.getSrc())) {
+            log.debug("SwarmCache: Discarding own message: "+address);
+            return;
         }
 
-        public void stop() {
-            bus.stop();
+        Object object = message.getObject();
+        if (!(object instanceof InvalidationList)) {
+            return;
         }
 
-        public Serializable getCache() {
-            return null;
-        }
-
-        public void sendNotification(List inserted, List updated, List deleted, List parents) {
-            if (!inserted.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
-                HashSet keys = new HashSet();
-                HashSet parentKeys = new HashSet();
-                HashSet types = new HashSet();
-                collectUpdates(inserted, keys, types);
-                collectUpdates(updated, keys, types);
-                collectUpdates(deleted, keys, types);
-                collectUpdates(parents, parentKeys, null);
-                app.logEvent("HelmaSwarm: Sending invalidation for "+keys+", "+types);
-                InvalidationList list = new InvalidationList(address, keys, parentKeys, types);
-                bus.sendNotification(list);
-            }
-        }
-
-        public void handleNotification(Serializable object) {
-            InvalidationList list = (InvalidationList) object;
-            if (address.equals(list.address)) {
-                app.logEvent("HelmaSwarm: got own message, returning");
-                return;
-            }
-            for (int i=0; i<list.types.length; i++) {
-                app.logEvent("HelmaSwarm: marking "+list.types[i]);
-                DbMapping dbm = app.getDbMapping(list.types[i]);
-                long now = System.currentTimeMillis();
-                if (dbm != null) {
-                    dbm.setLastDataChange(now);
-                }
-            }
-            for (int i=0; i<list.keys.length; i++) {
-                app.logEvent("HelmaSwarm: invalidating "+list.keys[i]);
-                Node node = (Node) cache.remove(list.keys[i]);
-                if (node != null) {
-                    node.setState(Node.INVALID);
-                }
-            }
+        InvalidationList list = (InvalidationList) object;
+        for (int i=0; i<list.types.length; i++) {
+            log.debug("SwarmCache: marking "+list.types[i]);
+            DbMapping dbm = app.getDbMapping(list.types[i]);
             long now = System.currentTimeMillis();
-            for (int i=0; i<list.parentKeys.length; i++) {
-                Node node = (Node) cache.get(list.parentKeys[i]);
-                if (node != null) {
-                    node.setLastSubnodeChange(now);
-                }
+            if (dbm != null) {
+                dbm.setLastDataChange(now);
+            }
+        }
+        for (int i=0; i<list.keys.length; i++) {
+            log.debug("SwarmCache: invalidating "+list.keys[i]);
+            Node node = (Node) cache.remove(list.keys[i]);
+            if (node != null) {
+                node.setState(Node.INVALID);
+            }
+        }
+        long now = System.currentTimeMillis();
+        for (int i=0; i<list.parentKeys.length; i++) {
+            Node node = (Node) cache.get(list.parentKeys[i]);
+            if (node != null) {
+                node.setLastSubnodeChange(now);
             }
         }
 
-        public void memberJoined(Address who) {
-            app.logEvent("HelmaSwarm: A host has joined the cache notification bus: " + who + ".");
-        }
+    }
 
-        public void memberLeft(Address who) {
-            app.logEvent("HelmaSwarm: A host has left the cache notification bus: " + who + ".");
-        }
+    public byte[] getState() {
+        // doesn't implement state transfer
+        return null;
+    }
 
-        public String getJGroupProperties() {
-            StringBuffer b = new StringBuffer(groupPropsPrefix);
-            b.append("mcast_addr=");
-            b.append(app.getProperty("helmaswarm.multicast_ip", mcast_ip));
-            b.append(";mcast_port=");
-            b.append(app.getProperty("helmaswarm.multicast_port", mcast_port));
-            b.append(";ip_ttl=");
-            b.append(app.getProperty("helmaswarm.ip_ttl", ip_ttl));
-            b.append(";bind_port=");
-            b.append(app.getProperty("helmaswarm.bind_port", bind_port));
-            b.append(";port_range=");
-            b.append(app.getProperty("helmaswarm.port_range", port_range));
-            String bind_addr = app.getProperty("helmaswarm.bind_addr");
-            if (bind_addr != null) {
-                b.append(";bind_addr=");
-                b.append(bind_addr);
-            }
-            b.append(";");
-            b.append(groupPropsSuffix);
-            return b.toString();
-        }
-        
-        private void collectUpdates(List list, HashSet keys, HashSet types) {
-            for (int i=0; i<list.size(); i++) {
-                Node node = (Node) list.get(i);
-                keys.add(node.getKey());
-                DbMapping dbm = node.getDbMapping();
-                if (types != null && dbm != null) {
-                    types.add(dbm.getTypeName());
-                }
-            }
-        }
+    public void setState(byte[] bytes) {
+        // doesn't implement state transfer
     }
     
     static class InvalidationList implements Serializable {
-        Address address;
         Object[] keys;
         Object[] parentKeys;
         String[] types;
         
-        public InvalidationList(Address address, HashSet keys, HashSet parentKeys, HashSet types) {
-            this.address = address;
+        public InvalidationList(HashSet keys, HashSet parentKeys, HashSet types) {
             this.keys = keys.toArray();
             this.parentKeys = parentKeys.toArray();
             this.types = (String[]) types.toArray(new String[types.size()]);
