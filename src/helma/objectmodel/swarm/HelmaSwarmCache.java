@@ -195,7 +195,7 @@ public class HelmaSwarmCache implements ObjectCache, NodeChangeListener {
         private Address address;
         
         public Connector() {
-        	try {
+            try {
                 String groupProps = getJGroupProperties();
                 bus = new NotificationBus("HelmaSwarm", groupProps);
                 bus.start();
