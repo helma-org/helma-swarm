@@ -1,7 +1,7 @@
 HelmaSwarm
 ==========
 
-// FIXME: update description to include SwarmSessionManager
+// FIXME: HelmaSwarm now also does session replication and coordinated id generation.
 
 HelmaSwarm is a distributed ObjectCache implementation for Helma clusters 
 based on JGroups. HelmaSwarm is similar to the traditional Helma cache 
@@ -12,7 +12,7 @@ Requirements
 ============
 
 This version of HelmaSwarm requires a Helma snapshot from 
-March 18, 2005 or later.
+March 21, 2005 or later.
 
 Building
 ========
@@ -39,6 +39,10 @@ add the following property to its app.properties file:
 To enable HTTP session replication, add:
 
   sessionManagerImpl = helma.swarm.SwarmSessionManager
+  
+Finally, do have HelmaSwarm coordinate ID generation, add the following:
+
+  idGeneratorImpl = helma.swarm.SwarmIDGenerator
 
 By default, HelmaSwarm will use port 22023 on multicast address 224.0.0.132.
 To use a different port or address or change the default ttl of 32, use the 
