@@ -48,7 +48,7 @@
     <target name="dist">
         <zip zipfile="helmaSwarm.zip">
             <zipfileset dir="." prefix="helmaswarm" 
-                includes="**" excludes="*.zip,**/*~,classes/**"/>
+                includes="**" excludes="*.zip,**/*~,classes/**,CVS/**"/>
         </zip>
     </target>
 
