@@ -29,6 +29,7 @@ import org.apache.commons.logging.Log;
 public class SwarmIDGenerator implements IDGenerator, MessageListener,
                                          MembershipListener, RequestHandler {
 
+    Application app;
     NodeManager nmgr;
     MessageDispatcher dispatcher;
     Address address;
@@ -36,6 +37,7 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
     Log log;
 
     public void init(Application app) {
+        this.app = app;
         nmgr = app.getNodeManager();
         String logName = new StringBuffer("helma.")
                                   .append(app.getName())
@@ -60,6 +62,7 @@ public class SwarmIDGenerator implements IDGenerator, MessageListener,
         if (dispatcher != null) {
             dispatcher.stop();
         }
+        ChannelUtils.stopAdapter(app);
     }
 
     public String generateID(DbMapping dbmap) throws Exception {

@@ -77,8 +77,9 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             cache.shutdown();
         }
         if (adapter != null) {
-            adapter.stop();
+            adapter.unregisterListener(ChannelUtils.CACHE);
         }
+        ChannelUtils.stopAdapter(app);
     }
 
     /**

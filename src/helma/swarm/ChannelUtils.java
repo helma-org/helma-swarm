@@ -33,7 +33,7 @@ public class ChannelUtils {
     final static Integer CACHE = new Integer(1);
     final static Integer IDGEN = new Integer(2);
 
-    public static PullPushAdapter getAdapter(Application app)
+    static PullPushAdapter getAdapter(Application app)
             throws ChannelException {
         PullPushAdapter adapter = (PullPushAdapter) adapters.get(app);
 
@@ -68,6 +68,17 @@ public class ChannelUtils {
         return adapter;
     }
 
+    static void stopAdapter(Application app) {
+        PullPushAdapter adapter = (PullPushAdapter) adapters.remove(app);
+        if (adapter != null) {
+            Channel channel = (Channel) adapter.getTransport();
+            if (channel.isConnected())
+                channel.disconnect();
+            if (channel.isOpen())
+                channel.close();
+            adapter.stop();
+        }
+    }
 
     // jgroups properties. copied from swarmcache
     final static String groupPropsPrefix = "UDP(";
