@@ -19,10 +19,13 @@ package helma.swarm;
 import helma.framework.core.Session;
 import helma.framework.core.Application;
 import helma.framework.core.RequestEvaluator;
+import helma.objectmodel.db.NodeHandle;
 
 public class SwarmSession extends Session {
 
-    transient long previousLastModified;
+    transient long previousLastMod;
+    NodeHandle previousUserHandle;
+    String previousMessage;
     transient SwarmSessionManager sessionMgr;
 
     public SwarmSession(String sessionId, Application app, SwarmSessionManager mgr) {
@@ -33,7 +36,9 @@ public class SwarmSession extends Session {
     public void touch() {
         super.touch();
         sessionMgr.touchSession(this);
-        previousLastModified = lastModified;
+        previousLastMod = cacheNode.lastModified();
+        previousUserHandle = userHandle;
+        previousMessage = message;
     }
 
     void replicatedTouch() {
@@ -41,8 +46,9 @@ public class SwarmSession extends Session {
     }
 
     public void commit(RequestEvaluator reval) {
-        lastModified = Math.max(lastModified, cacheNode.lastModified());
-        if (lastModified != previousLastModified) {
+        if (cacheNode.lastModified() != previousLastMod ||
+                userHandle != previousUserHandle ||
+                message != previousMessage) {
             sessionMgr.broadcastSession(this, reval);
         }
     }

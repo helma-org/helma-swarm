@@ -18,6 +18,7 @@ package helma.swarm;
 
 import org.jgroups.*;
 import org.jgroups.blocks.PullPushAdapter;
+import org.apache.commons.logging.Log;
 
 import java.io.*;
 import java.util.List;
@@ -30,18 +31,27 @@ import helma.framework.core.Application;
 import helma.framework.core.Session;
 import helma.framework.core.RequestEvaluator;
 import helma.scripting.ScriptingEngine;
+import helma.objectmodel.db.NodeHandle;
+import helma.objectmodel.INode;
+import helma.objectmodel.TransientNode;
 
 public class SwarmSessionManager extends SessionManager
         implements MessageListener, MembershipListener {
 
     PullPushAdapter adapter;
     Address address;
+    Log log;
 
     ////////////////////////////////////////////////////////
     // SessionManager functionality
 
     public void init(Application app) {
         this.app = app;
+        String logName = new StringBuffer("helma.")
+                                  .append(app.getName())
+                                  .append(".swarm")
+                                  .toString();
+        log = app.getLogger(logName);
         try {
             Channel channel = ChannelUtils.createChannel(app);
             channel.connect("swarm_session");
@@ -50,10 +60,10 @@ public class SwarmSessionManager extends SessionManager
             channel.setOpt(Channel.GET_STATE_EVENTS, Boolean.TRUE);
             channel.setOpt(Channel.AUTO_GETSTATE, Boolean.TRUE);
             if (!channel.getState(null, 0)) {
-                app.logEvent("Couldn't get session state. First instance in swarm?");
+                log.debug("Couldn't get session state. First instance in swarm?");
             }
         } catch (Exception e) {
-            app.logError("HelmaSwarm: Error starting/joining channel", e);
+            log.error("HelmaSwarm: Error starting/joining channel", e);
             e.printStackTrace();
         }
     }
@@ -89,28 +99,32 @@ public class SwarmSessionManager extends SessionManager
 
     public void receive(Message msg) {
         if (address.equals(msg.getSrc())) {
-            // app.logEvent("DISCARDING OWN MESSAGE: "+address);
+            log.debug("Discarding own message: "+address);
             return;
         }
 
         Object object = msg.getObject();
-        // app.logEvent("GOT OBJECT: " + object);
-        if (object instanceof byte[]) {
+        log.debug("Received object: " + object);
+        if (object instanceof UpdateSessionEvent) {
             try {
-                SwarmSession session = (SwarmSession) bytesToObject((byte[]) object);
-                session.setApp(app);
-                session.sessionMgr = SwarmSessionManager.this;
-                sessions.put(session.getSessionId(), session);
-                app.logEvent("TRANSFERED SESSION: " + session);
+                UpdateSessionEvent update = (UpdateSessionEvent) object;
+                Session session = getSession(update.sessionId);
+                if (session == null) {
+                    session = createSession(update.sessionId);
+                }
+                session.setMessage(update.message);
+                session.setUserHandle(update.userHandle);
+                if (update.cacheNode != null) {
+                    Object cacheNode = bytesToObject(update.cacheNode);
+                    session.setCacheNode((TransientNode) cacheNode);
+                }
+                log.debug("Transfered session: " + session);
             } catch (Exception x) {
-                app.logError("Error in session deserialization", x);
+                log.error("Error in session deserialization", x);
             }
         } else if (object instanceof UpdateList) {
             UpdateList list = (UpdateList) object;
-            if (address.equals(list.address)) {
-                app.logEvent("HelmaSwarm: got own message, returning");
-                return;
-            }
+
             for (int i = 0; i < list.touched.length; i++) {
                // TODO: implement bulk session update
             }
@@ -120,13 +134,13 @@ public class SwarmSessionManager extends SessionManager
         } else if (object instanceof DiscardSessionEvent) {
             // TODO: implement staged session dump
             sessions.remove(object.toString());
-            app.logEvent("DISCARDED SESSION: " + object);
+            log.debug("Discarded session: " + object);
         } else if (object instanceof TouchSessionEvent) {
             Session session = getSession(object.toString());
             if (session instanceof SwarmSession) {
                 ((SwarmSession) session).replicatedTouch();
             }
-            app.logEvent("TOUCHED SESSION: " + object);
+            log.debug("Touched session: " + object);
         }
     }
 
@@ -137,10 +151,10 @@ public class SwarmSessionManager extends SessionManager
         try {
             return objectToBytes(map, reval);
         } catch (IOException x) {
-            app.logError("Error in getState()", x);
+            log.error("Error in getState()", x);
             throw new RuntimeException("Error in getState(): "+x);
         } finally {
-            app.logEvent("RETURNED STATE: " + map);
+            log.debug("Returned session table: " + map);
             app.releaseEvaluator(reval);
         }
     }
@@ -156,23 +170,20 @@ public class SwarmSessionManager extends SessionManager
                 session.sessionMgr = SwarmSessionManager.this;
             }
             sessions = map;
-            app.logEvent("RECEIVED SESSIONS: " + map);
+            log.debug("Received session: " + map);
             } catch (Exception x) {
-                app.logError ("Error in setState()", x);
+                log.error ("Error in setState()", x);
             }
         }
     }
 
     void broadcastSession(SwarmSession session, RequestEvaluator reval) {
-        app.logEvent("SESSION CHANGED: " + session);
+        log.debug("Broadcasting changed session: " + session);
         try {
-            byte[] bytes = objectToBytes(session, reval);
-            // cast serialized session to Serializable because otherwise
-            // PullPushAdapter automatically deserializes at the receiving end,
-            // but we need to be able to apply our own custom deserialization
-            adapter.send(new Message(null, address, (Serializable) bytes));
+            UpdateSessionEvent update = new UpdateSessionEvent(session, reval);
+            adapter.send(new Message(null, address, update));
         } catch (Exception x) {
-            app.logError("Error in session replication", x);
+            log.error("Error in session replication", x);
         }
     }
 
@@ -180,11 +191,11 @@ public class SwarmSessionManager extends SessionManager
         try {
             adapter.send(new Message(null, address, object));
         } catch (Exception x) {
-            app.logError("Error broadcasting session event", x);
+            log.error("Error broadcasting session event", x);
         }
     }
 
-    byte[] objectToBytes(Object obj, RequestEvaluator reval)
+    static byte[] objectToBytes(Object obj, RequestEvaluator reval)
             throws IOException {
         ScriptingEngine engine = reval.getScriptingEngine();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -206,15 +217,15 @@ public class SwarmSessionManager extends SessionManager
 
 
     public void viewAccepted(View view) {
-        app.logEvent("SESSION MGR: GOT VIEW_ACCEPTED()");
+        // log.debug("SESSION MGR: GOT VIEW_ACCEPTED()");
     }
 
     public void suspect(Address address) {
-        app.logEvent("SESSION MGR: GOT SUSPECT()");
+        // log.debug("SESSION MGR: GOT SUSPECT()");
     }
 
     public void  block() {
-        app.logEvent("SESSION MGR: GOT BLOCK()");
+        // log.debug("SESSION MGR: GOT BLOCK()");
     }
 
 
@@ -252,6 +263,26 @@ public class SwarmSessionManager extends SessionManager
         public String toString() {
             return sessionId;
         }
+    }
+
+    static class UpdateSessionEvent implements Serializable {
+        String sessionId;
+        String message;
+        NodeHandle userHandle;
+        byte[] cacheNode = null;
+
+        UpdateSessionEvent(SwarmSession session, RequestEvaluator reval)
+                throws IOException{
+            this.sessionId = session.getSessionId();
+            this.message = session.getMessage();
+            this.userHandle = session.getUserHandle();
+            INode cacheNode = session.getCacheNode();
+            // only transfer cache node if it has changed
+            if (cacheNode.lastModified() != session.previousLastMod) {
+                this.cacheNode = objectToBytes(session, reval);
+            }
+        }
+
     }
 }
 
