@@ -74,8 +74,12 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
      * Called to shut down the cache when the application terminates.
      */
     public void shutdown() {
-        cache.shutdown();
-        adapter.stop();
+        if (cache != null) {
+            cache.shutdown();
+        }
+        if (adapter != null) {
+            adapter.stop();
+        }
     }
 
     /**
