@@ -422,6 +422,13 @@ class CacheFilter {
         prototype = elem.getAttribute("prototype");
         property = elem.getAttribute("property");
         value = elem.getAttribute("value");
+        // we get empty strings for non-existing attributes, null them out
+        if ("".equals(prototype))
+            prototype = null;
+        if ("".equals(property))
+            property = null;
+        if ("".equals(value))
+            value = null;
     }
 
     public boolean check(Node node) {
