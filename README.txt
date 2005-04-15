@@ -53,9 +53,9 @@ HelmaSwarm is built with Apache Ant.
 
   2) Run the following in the command line:
 
-       ant jar
+       ant install
 
-This should compile and build helmaSwarm.jar and copy it to the lib/ext 
+This should compile and build helmaswarm-version.jar and copy it to the lib/ext 
 directory of your Helma installation along with the JGroups jar file.
 
 Configuration
