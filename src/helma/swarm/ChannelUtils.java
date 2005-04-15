@@ -109,7 +109,7 @@ class SwarmConfig {
 
         Resource res = null;
 
-        String conf = app.getProperty("swarm.config");
+        String conf = app.getProperty("swarm.conf");
 
         if (conf != null) {
             res = new FileResource(new File(conf));
@@ -117,7 +117,7 @@ class SwarmConfig {
             Iterator reps = app.getRepositories().iterator();
             while (reps.hasNext()) {
                 Repository rep = (Repository) reps.next();
-                res = rep.getResource("helmaswarm.conf");
+                res = rep.getResource("swarm.conf");
                 if (res != null)
                     break;
             }
@@ -137,7 +137,7 @@ class SwarmConfig {
             NodeList nodes = root.getElementsByTagName("jgroups-stack");
 
             if (nodes.getLength() == 0) {
-                app.logEvent("No JGroups stack found in helmaswarm.conf, using defaults");
+                app.logEvent("No JGroups stack found in swarm.conf, using defaults");
             } else {
                 NodeList jgroups = null;
 
@@ -151,7 +151,7 @@ class SwarmConfig {
                 }
                 if (jgroups == null) {
                     app.logEvent("JGroups stack \"" + stackName +
-                            "\" not found in helmaswarm.conf, using first element");
+                            "\" not found in swarm.conf, using first element");
                     jgroups = nodes.item(0).getChildNodes();
                 }
 
