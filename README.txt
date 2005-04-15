@@ -1,11 +1,9 @@
 HelmaSwarm
 ==========
 
-HelmaSwarm is a clustering add-on package that allows multiple instances of
-Helma to join into one virtual server. HelmaSwarm uses JGroups
-<http://jgroups.org> for the behind-the-scenes communication between Helma
-instances. HelmaSwarm provides three tools that connect into various parts of
-Helma:
+HelmaSwarm is a Helma extension that allows multiple instances of Helma to be
+combined into a cluster. It consists of three tools that plug into various parts
+of Helma:
 
   1) SwarmCache, which acts as a replacement object cache that propagates
      notifications of changed objects to other members in the swarm.
@@ -19,6 +17,9 @@ Helma:
      for creating primary keys (as is usually the case with MySQL). It is not
      needed if Sequences are used for key generation (as usually the case with
      Oracle, for instance).
+
+HelmaSwarm uses JGroups <http://jgroups.org> for communication between Helma
+instances. 
 
 Asynchronous Communication and Sticky Sessions
 ==============================================
