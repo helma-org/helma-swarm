@@ -70,7 +70,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
         parseCacheDomains(app);
         try {
             adapter = ChannelUtils.getAdapter(app);
-            if (domains.length == 0) {
+            if (domains == null || domains.length == 0) {
                 adapter.registerListener(ChannelUtils.CACHE, this);
             } else {
                 for (int i = 0; i < domains.length; i++) {
@@ -94,7 +94,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             cache.shutdown();
         }
         if (adapter != null) {
-            if (domains.length == 0) {
+            if (domains == null || domains.length == 0) {
                 adapter.unregisterListener(ChannelUtils.CACHE);
             } else {
                 for (int i = 0; i < domains.length; i++) {
@@ -112,7 +112,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     public void nodesChanged(List inserted, List updated,
                              List deleted, List parents) {
         if (!inserted.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
-            if (domains.length == 0) {
+            if (domains == null || domains.length == 0) {
                 broadcastNodeChange(null, inserted, updated, deleted, parents);
             } else {
                 for (int i = 0; i < domains.length; i++) {
@@ -319,7 +319,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
 
         Resource res = null;
 
-        String conf = app.getProperty("swarm.config");
+        String conf = app.getProperty("swarm.conf");
 
         if (conf != null) {
             res = new FileResource(new File(conf));
@@ -327,7 +327,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             Iterator reps = app.getRepositories().iterator();
             while (reps.hasNext()) {
                 Repository rep = (Repository) reps.next();
-                res = rep.getResource("helmaswarm.conf");
+                res = rep.getResource("swarm.conf");
                 if (res != null)
                     break;
             }
