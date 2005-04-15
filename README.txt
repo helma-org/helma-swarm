@@ -16,8 +16,9 @@ Helma:
 
   3) SwarmIDGenerator, which is necessary to coordinate primary key generation
      for new persistent objects when the underlying database uses SELECT max(id)
-     for creating primary keys. It is not needed if Sequences are used for
-     key generation.
+     for creating primary keys (as is usually the case with MySQL). It is not
+     needed if Sequences are used for key generation (as usually the case with
+     Oracle, for instance).
 
 Asynchronous Communication and Sticky Sessions
 ==============================================
