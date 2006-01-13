@@ -3,7 +3,7 @@
 <project name="HelmaSwarm" default="install" basedir=".">
 
     <target name="init">
-        <property name="version" value="0.9"/>
+        <property name="version" value="0.9.1"/>
         <loadproperties srcFile="build.properties"/>
     </target>
         
