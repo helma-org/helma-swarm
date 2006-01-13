@@ -440,12 +440,7 @@ class CacheFilter {
             }
         }
 
-        if (property != null && value != null &&
-                !value.equals(node.getString(property))) {
-            return false;
-        }
-
-        return true;
+        return property == null || value == null || value.equals(node.getString(property));
     }
 
     public String toString() {
