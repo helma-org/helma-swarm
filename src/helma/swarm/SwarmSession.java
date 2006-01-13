@@ -32,6 +32,7 @@ public class SwarmSession extends Session {
     transient long previousLastMod;
     transient NodeHandle previousUserHandle;
     transient String previousMessage;
+    transient StringBuffer previousDebugBuffer;
 
     public SwarmSession(String sessionId, Application app, SwarmSessionManager mgr) {
         super(sessionId, app);
@@ -44,6 +45,7 @@ public class SwarmSession extends Session {
         previousLastMod = cacheNode.lastModified();
         previousUserHandle = userHandle;
         previousMessage = message;
+        previousDebugBuffer = debugBuffer;
     }
 
     void replicatedTouch() {
@@ -74,7 +76,8 @@ public class SwarmSession extends Session {
         // true if session was modified since we last called touch() on it
         return cacheNode.lastModified() != previousLastMod ||
                userHandle != previousUserHandle ||
-               message != previousMessage;
+               message != previousMessage ||
+               debugBuffer != previousDebugBuffer;
     }
 
 }

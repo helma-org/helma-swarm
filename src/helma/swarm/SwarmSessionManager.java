@@ -161,6 +161,7 @@ public class SwarmSessionManager extends SessionManager
                     session = createSession(update.sessionId);
                 }
                 session.setMessage(update.message);
+                session.setDebugBuffer(update.debugBuffer);
                 session.setUserHandle(update.userHandle);
                 if (update.cacheNode != null) {
                     Object cacheNode = bytesToObject(update.cacheNode);
@@ -291,6 +292,7 @@ public class SwarmSessionManager extends SessionManager
     static class SessionUpdate implements Serializable {
         String sessionId;
         String message;
+        StringBuffer debugBuffer;
         NodeHandle userHandle;
         byte[] cacheNode = null;
 
@@ -298,6 +300,7 @@ public class SwarmSessionManager extends SessionManager
                 throws IOException{
             this.sessionId = session.getSessionId();
             this.message = session.getMessage();
+            this.debugBuffer = session.getDebugBuffer();
             this.userHandle = session.getUserHandle();
             INode cacheNode = session.getCacheNode();
             // only transfer cache node if it has changed
