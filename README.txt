@@ -43,7 +43,7 @@ Requirements
 ============
 
 This version of HelmaSwarm requires a Helma snapshot from
-March 25, 2005 or later.
+January 14, 2006 or later.
 
 Building
 ========
