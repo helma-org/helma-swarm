@@ -52,10 +52,23 @@ public class SwarmSession extends Session {
         super.touch();
     }
 
+    /**
+     * Called after a request has been handled.
+     * @param reval the request evaluator that handled the request
+     */
     public void commit(RequestEvaluator reval) {
         if (wasModifiedInRequest()) {
             sessionMgr.broadcastSession(this, reval);
         }
+    }
+
+    /**
+     * Override setApp to also set the transient sessionMgr field
+     * @param app the Application
+     */
+    public void setApp(Application app) {
+        sessionMgr = (SwarmSessionManager) app.getSessionManager();
+        super.setApp(app);
     }
 
     protected boolean isDistributed() {
