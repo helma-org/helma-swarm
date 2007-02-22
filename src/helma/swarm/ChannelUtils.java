@@ -17,10 +17,7 @@ package helma.swarm;
 
 import org.jgroups.*;
 import org.jgroups.blocks.PullPushAdapter;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.Node;
+import org.w3c.dom.*;
 import helma.framework.core.Application;
 import helma.framework.repository.Repository;
 import helma.framework.repository.Resource;
@@ -158,10 +155,10 @@ class SwarmConfig {
                 StringBuffer buffer = new StringBuffer();
                 for (int i = 0; i < jgroups.getLength(); i++) {
                     Node node = jgroups.item(i);
-                    if (!"#text".equals(node.getNodeName())) {
+                    if (! (node instanceof Text)) {
                         continue;
                     }
-                    String str = node.toString();
+                    String str = ((Text) node).getData();
                     for (int j = 0; j < str.length(); j++) {
                         char c = str.charAt(j);
                         if (!Character.isWhitespace(c)) {
