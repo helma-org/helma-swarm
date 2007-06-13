@@ -273,7 +273,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
             DbMapping dbm = app.getDbMapping(list.types[i]);
             long now = System.currentTimeMillis();
             if (dbm != null) {
-                dbm.setLastDataChange(now);
+                dbm.setLastDataChange();
             }
         }
         for (int i=0; i<list.keys.length; i++) {
@@ -287,7 +287,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
         for (int i=0; i<list.parentKeys.length; i++) {
             Node node = (Node) cache.get(list.parentKeys[i]);
             if (node != null) {
-                node.setLastSubnodeChange(now);
+                node.markSubnodesChanged();
             }
         }
 
