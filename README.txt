@@ -42,8 +42,8 @@ ahead of HelmaSwarm communication on the server LAN.
 Requirements
 ============
 
-This version of HelmaSwarm requires a Helma snapshot from
-January 14, 2006 or later.
+This version of HelmaSwarm requires Helma 1.6.0-rc2 (Release Candidate 2)
+or later.
 
 Building
 ========
