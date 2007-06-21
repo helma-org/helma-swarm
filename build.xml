@@ -35,8 +35,8 @@
                optimize="on">
             <classpath>
                 <pathelement location="${helma.install.dir}/lib/helma.jar"/>
+              <pathelement location="${helma.install.dir}/commons-logging.jar"/>
                 <pathelement location="lib/jgroups-all.jar"/>
-                <pathelement location="lib/commons-logging.jar"/>
             </classpath>
         </javac>
         <jar jarfile="lib/helmaswarm-${version}.jar"
@@ -49,6 +49,8 @@
             todir="${helma.install.dir}/lib/ext/" />
         <copy file="lib/jgroups-all.jar" 
             todir="${helma.install.dir}/lib/ext/" />
+      <copy file="lib/concurrent.jar"
+          todir="${helma.install.dir}/lib/ext/" />
     </target>
 
     <target name="dist" depends="init,compile">

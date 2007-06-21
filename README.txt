@@ -19,7 +19,7 @@ of Helma:
      Oracle, for instance).
 
 HelmaSwarm uses JGroups <http://jgroups.org> for communication between Helma
-instances. 
+instances. This version of Helmaswarm comes bundled with JGroups 2.4.1-sp3.
 
 Asynchronous Communication and Sticky Sessions
 ==============================================
