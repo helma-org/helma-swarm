@@ -68,7 +68,7 @@ public class SwarmSessionManager extends SessionManager
                 log.debug("Couldn't get session state. First instance in swarm?");
             }
             // start broadcaster thread
-            runner = new Thread(this);
+            runner = new Thread(this, "SwarmSessionMgr-" + app.getName());
             runner.setDaemon(true);
             runner.start();
         } catch (Exception e) {
