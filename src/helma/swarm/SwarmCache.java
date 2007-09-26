@@ -8,7 +8,7 @@
  *
  * Copyright 1998-2003 Helma Software. All Rights Reserved.
  *
- * $RCSfile$
+ * $RCSfile: SwarmCache.java,v $
  * $Author$
  * $Revision$
  * $Date$
@@ -58,9 +58,10 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
      */
     public void init(Application app) {
         this.app = app;
-        app.getNodeManager().addNodeChangeListener(this);
         // Configure and Initialize the cache
         cache = new CacheMap();
+        cache.init(app);
+        app.getNodeManager().addNodeChangeListener(this);
         // Set up the channel
         String logName = new StringBuffer("helma.")
                                   .append(app.getName())
@@ -164,7 +165,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     /**
      * Called when the application's properties have been updated to let
      * the cache implementation update its settings.
-     * @param props
+     * @param props the properties object
      */
     public void updateProperties(Properties props) {
         cache.updateProperties(props);
