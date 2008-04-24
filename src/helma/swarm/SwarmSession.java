@@ -20,8 +20,11 @@ import helma.framework.core.Session;
 import helma.framework.core.Application;
 import helma.framework.core.RequestEvaluator;
 import helma.objectmodel.db.NodeHandle;
+import helma.objectmodel.INode;
 
 public class SwarmSession extends Session {
+
+    static final long serialVersionUID = -277633455908843661L;
 
     // distributed flag - true for replicated sessions
     boolean distributed = false;
@@ -42,7 +45,7 @@ public class SwarmSession extends Session {
     public void touch() {
         super.touch();
         sessionMgr.touchSession(this);
-        previousLastMod = cacheNode.lastModified();
+        previousLastMod = getCacheNode().lastModified();
         previousUserHandle = userHandle;
         previousMessage = message;
         previousDebugBuffer = debugBuffer;
@@ -81,13 +84,15 @@ public class SwarmSession extends Session {
 
     protected boolean wasModified() {
         // true if either session state or cachenode have been modified in the past
+        INode cache = getCacheNode();
         return lastModified != onSince ||
-               cacheNode.created() != cacheNode.lastModified();
+               cache.created() != cache.lastModified();
     }
 
     protected boolean wasModifiedInRequest() {
         // true if session was modified since we last called touch() on it
-        return cacheNode.lastModified() != previousLastMod ||
+        INode cache = getCacheNode();
+        return cache.lastModified() != previousLastMod ||
                userHandle != previousUserHandle ||
                message != previousMessage ||
                debugBuffer != previousDebugBuffer;
