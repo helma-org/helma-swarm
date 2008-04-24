@@ -45,6 +45,13 @@ Requirements
 This version of HelmaSwarm requires Helma 1.6.0-rc2 (Release Candidate 2)
 or later.
 
+Known Bugs
+==========
+
+Because of an incompatible change in the Session class, session transfer at 
+startup time will not work between instances of Helma 1.6.2 and earlier 
+Helma 1.6 releases in the same swarm. 
+
 Building
 ========
 
