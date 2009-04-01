@@ -68,7 +68,7 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
     public String generateID(DbMapping dbmap) throws Exception {
         String typeName = dbmap == null ? null : dbmap.getTypeName();
         // try three times to get id from group coordinator
-        for (int i=0; i<3; i++) {
+        for (int i = 0; i < 3; i++) {
             // if we are the coordinator, create id locally
             Address coordinator = (Address) view.getMembers().firstElement();
             if (coordinator == null) {
@@ -80,8 +80,15 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
                 return nmgr.doGenerateID(dbmap);
             }
             Message msg = new Message(coordinator, address, typeName);
-            Object response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 8000);
-            log.info("SwarmIDGenerator: Received ID " + response + " for " + dbmap);
+            Object response = null;
+            try {
+                // Note: message timeout should not be used if suspicion service is available.
+                // It's more of a safety net/last ressort here.
+                response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 20000);
+                log.info("SwarmIDGenerator: Received ID " + response + " for " + dbmap);
+            } catch (TimeoutException timeout) {
+                log.info("SwarmIDGenerator: Message to " + coordinator + " timed out");
+            }
             if (response != null) {
                 return (String) response;
             }
