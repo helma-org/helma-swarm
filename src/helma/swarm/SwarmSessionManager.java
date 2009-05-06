@@ -30,7 +30,6 @@ import helma.framework.core.RequestEvaluator;
 import helma.scripting.ScriptingEngine;
 import helma.objectmodel.db.NodeHandle;
 import helma.objectmodel.INode;
-import helma.objectmodel.TransientNode;
 
 public class SwarmSessionManager extends SessionManager
                                  implements MessageListener, Runnable {
@@ -165,7 +164,7 @@ public class SwarmSessionManager extends SessionManager
                 session.setUserHandle(update.userHandle);
                 if (update.cacheNode != null) {
                     Object cacheNode = bytesToObject(update.cacheNode);
-                    session.setCacheNode((TransientNode) cacheNode);
+                    session.setCacheNode((INode) cacheNode);
                 }
                 log.debug("Transfered session update: " + session);
             } catch (Exception x) {
