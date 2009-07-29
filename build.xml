@@ -15,6 +15,7 @@
         <echo message=""/>
         <echo message=" available targets are:"/>
         <echo message=""/>
+        <echo message=" clean      --> remove intermediary files"/>
         <echo message=" compile    --> compiles and jars the classes"/>
         <echo message=" install    --> installs the jar file"/>
         <echo message=" dist       --> creates a zip file for distribution"/>
@@ -25,6 +26,10 @@
         <echo message=""/>
     </target>
 
+    <target name="clean" depends="init">
+        <delete dir="classes"/>
+    </target>
+
     <target name="compile" depends="init">
         <mkdir dir="classes"/>
         <javac srcdir="src"
@@ -32,7 +37,8 @@
                target="1.4"                        
                destdir="classes"
                debug="on"
-               optimize="on">
+               optimize="on"
+               deprecation="off">
             <classpath>
                 <pathelement location="${helma.install.dir}/lib/helma.jar"/>
                 <pathelement location="${helma.install.dir}/lib/commons-logging.jar"/>
