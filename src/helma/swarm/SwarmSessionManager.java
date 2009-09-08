@@ -121,7 +121,7 @@ public class SwarmSessionManager extends SessionManager
     public void run() {
         while(runner == Thread.currentThread()) {
             try {
-                Thread.sleep(1000l);
+                Thread.sleep(2000l);
             } catch (InterruptedException x) {
                 log.info("SwarmSession: broadcast thread interrupted, exiting");
                 return;
@@ -245,16 +245,16 @@ public class SwarmSessionManager extends SessionManager
     }
 
     void broadcastIds(int operation, Set idSet) {
-        if (!idSet.isEmpty()) {
-            Object[] ids = idSet.toArray();
-            for (int i=0; i<ids.length; i++)
-                idSet.remove(ids[i]);
-            Serializable idlist = new SessionIdList(operation, ids);
-            try {
+        try {
+            if (!idSet.isEmpty()) {
+                Object[] ids = idSet.toArray();
+                for (int i = 0; i < ids.length; i++)
+                    idSet.remove(ids[i]);
+                Serializable idlist = new SessionIdList(operation, ids);
                 adapter.send(new Message(null, address, idlist));
-            } catch (Exception x) {
-                log.error("Error broadcasting session list", x);
             }
+        } catch (Exception x) {
+            log.error("Error broadcasting session list", x);
         }
     }
 
