@@ -42,7 +42,7 @@ ahead of HelmaSwarm communication on the server LAN.
 Requirements
 ============
 
-This version of HelmaSwarm requires Helma 1.6.0-rc2 (Release Candidate 2)
+This version of HelmaSwarm requires Helma 1.7.0-rc3 (Release Candidate 3)
 or later.
 
 Known Bugs
