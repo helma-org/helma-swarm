@@ -19,7 +19,7 @@ package helma.swarm;
 import helma.framework.core.Session;
 import helma.framework.core.Application;
 import helma.framework.core.RequestEvaluator;
-import helma.objectmodel.db.NodeHandle;
+import helma.framework.core.SessionManager;
 import helma.objectmodel.INode;
 
 public class SwarmSession extends Session {
@@ -31,11 +31,6 @@ public class SwarmSession extends Session {
 
     // swarm session manager reference
     transient SwarmSessionManager sessionMgr;
-    // transient helper fields to track changes
-    transient long previousLastMod;
-    transient NodeHandle previousUserHandle;
-    transient String previousMessage;
-    transient StringBuffer previousDebugBuffer;
 
     public SwarmSession(String sessionId, Application app, SwarmSessionManager mgr) {
         super(sessionId, app);
@@ -45,10 +40,6 @@ public class SwarmSession extends Session {
     public void touch() {
         super.touch();
         sessionMgr.touchSession(this);
-        previousLastMod = getCacheNode().lastModified();
-        previousUserHandle = userHandle;
-        previousMessage = message;
-        previousDebugBuffer = debugBuffer;
     }
 
     void replicatedTouch() {
@@ -59,10 +50,12 @@ public class SwarmSession extends Session {
      * Called after a request has been handled.
      * @param reval the request evaluator that handled the request
      */
-    public void commit(RequestEvaluator reval) {
-        if (wasModifiedInRequest()) {
-            sessionMgr.broadcastSession(this, reval);
+    public void commit(RequestEvaluator reval, SessionManager smgr) {
+        boolean modifiedCacheNode = cacheLastModified != cacheNode.lastModified();
+        if (modifiedInRequest || modifiedCacheNode) {
+            sessionMgr.broadcastSession(this, reval, modifiedCacheNode);
         }
+        super.commit(reval, smgr);
     }
 
     /**
@@ -87,15 +80,6 @@ public class SwarmSession extends Session {
         INode cache = getCacheNode();
         return lastModified != onSince ||
                cache.created() != cache.lastModified();
-    }
-
-    protected boolean wasModifiedInRequest() {
-        // true if session was modified since we last called touch() on it
-        INode cache = getCacheNode();
-        return cache.lastModified() != previousLastMod ||
-               userHandle != previousUserHandle ||
-               message != previousMessage ||
-               debugBuffer != previousDebugBuffer;
     }
 
 }

@@ -43,6 +43,7 @@ public class SwarmSessionManager extends SessionManager
     Log log;
     volatile Thread runner;
     HashSet touched = new HashSet(), discarded = new HashSet();
+    boolean debug;
 
     ////////////////////////////////////////////////////////
     // SessionManager functionality
@@ -54,6 +55,7 @@ public class SwarmSessionManager extends SessionManager
                                   .append(".swarm")
                                   .toString();
         log = app.getLogger(logName);
+        debug = log.isDebugEnabled();
         try {
             adapter = ChannelUtils.getAdapter(app);
             Channel channel = (Channel) adapter.getTransport();
@@ -79,12 +81,9 @@ public class SwarmSessionManager extends SessionManager
 
     public Session createSession(String sessionId) {
         Session session = getSession(sessionId);
-
         if (session == null) {
             session = new SwarmSession(sessionId, app, this);
-            sessions.put(sessionId, session);
         }
-
         return session;
     }
 
@@ -136,19 +135,23 @@ public class SwarmSessionManager extends SessionManager
 
     public void receive(Message msg) {
         if (address.equals(msg.getSrc())) {
-            log.debug("Discarding own message: "+address);
+            if (debug) {
+                log.trace("Discarding own message: " + address);
+            }
             return;
         }
 
         Object object = msg.getObject();
-        log.debug("Received object: " + object);
+        if (debug) log.trace("Received object: " + object);
         if (object instanceof byte[]) {
             try {
                 SwarmSession session = (SwarmSession) bytesToObject((byte[]) object);
                 session.setApp(app);
                 session.sessionMgr = this;
-                sessions.put(session.getSessionId(), session);
-                log.debug("Transfered session: " + session);
+                registerSession(session);
+                if (debug) {
+                    log.debug("Received session: " + session);
+                }
             } catch (Exception x) {
                 log.error("Error in session deserialization", x);
             }
@@ -162,11 +165,14 @@ public class SwarmSessionManager extends SessionManager
                 session.setMessage(update.message);
                 session.setDebugBuffer(update.debugBuffer);
                 session.setUserHandle(update.userHandle);
+                session.setUID(update.uid);
                 if (update.cacheNode != null) {
                     Object cacheNode = bytesToObject(update.cacheNode);
                     session.setCacheNode((INode) cacheNode);
                 }
-                log.debug("Transfered session update: " + session);
+                if (debug) {
+                    log.debug("Received session update: " + session);
+                }
             } catch (Exception x) {
                 log.error("Error in session deserialization", x);
             }
@@ -177,14 +183,18 @@ public class SwarmSessionManager extends SessionManager
                 // TODO: implement staged session dump
                 for (int i = 0; i < ids.length; i++) {
                     sessions.remove(ids[i]);
-                    log.debug("Discarded session: " + ids[i]);
+                    if (debug) {
+                        log.trace("Discarded session: " + ids[i]);
+                    }
                 }
             } else if (idlist.operation == TOUCH) {
                 for (int i = 0; i < ids.length; i++) {
                     Object session = sessions.get(ids[i]);
                     if (session instanceof SwarmSession) {
                         ((SwarmSession) session).replicatedTouch();
-                        log.debug("Touched session: " + ids[i]);
+                        if (debug) {
+                            log.trace("Touched session: " + ids[i]);
+                        }
                     }
                 }
             }
@@ -201,7 +211,7 @@ public class SwarmSessionManager extends SessionManager
             log.error("Error in getState()", x);
             throw new RuntimeException("Error in getState(): "+x);
         } finally {
-            if (log.isDebugEnabled()) {
+            if (debug) {
                 log.debug("Returned session table: " + map);
             }
             app.releaseEvaluator(reval);
@@ -219,7 +229,7 @@ public class SwarmSessionManager extends SessionManager
                     session.sessionMgr = SwarmSessionManager.this;
                 }
                 sessions = map;
-                if (log.isDebugEnabled()) {
+                if (debug) {
                     log.debug("Received session map: " + map);
                 }
             } catch (Exception x) {
@@ -228,11 +238,11 @@ public class SwarmSessionManager extends SessionManager
         }
     }
 
-    void broadcastSession(SwarmSession session, RequestEvaluator reval) {
+    void broadcastSession(SwarmSession session, RequestEvaluator reval, boolean transferCacheNode) {
         log.debug("Broadcasting changed session: " + session);
         try {
             if (session.isDistributed()) {
-                SessionUpdate update = new SessionUpdate(session, reval);
+                SessionUpdate update = new SessionUpdate(session, reval, transferCacheNode);
                 adapter.send(new Message(null, address, update));
             } else {
                 session.setDistributed(true);
@@ -293,17 +303,18 @@ public class SwarmSessionManager extends SessionManager
         String message;
         StringBuffer debugBuffer;
         NodeHandle userHandle;
+        String uid;
         byte[] cacheNode = null;
 
-        SessionUpdate(SwarmSession session, RequestEvaluator reval)
+        SessionUpdate(SwarmSession session, RequestEvaluator reval, boolean transferCacheNode)
                 throws IOException{
             this.sessionId = session.getSessionId();
             this.message = session.getMessage();
             this.debugBuffer = session.getDebugBuffer();
             this.userHandle = session.getUserHandle();
-            INode cacheNode = session.getCacheNode();
+            this.uid = session.getUID();
             // only transfer cache node if it has changed
-            if (cacheNode.lastModified() != session.previousLastMod) {
+            if (transferCacheNode) {
                 this.cacheNode = objectToBytes(session.getCacheNode(), reval);
             }
         }
