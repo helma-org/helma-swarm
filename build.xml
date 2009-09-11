@@ -16,9 +16,9 @@
         <echo message=" available targets are:"/>
         <echo message=""/>
         <echo message=" clean      --> remove intermediary files"/>
-        <echo message=" compile    --> compiles and jars the classes"/>
+        <echo message=" jar        --> compiles the classes and build the jar file"/>
         <echo message=" install    --> installs the jar file"/>
-        <echo message=" dist       --> creates a zip file for distribution"/>
+        <echo message=" package    --> creates a zip file for distribution"/>
         <echo message=" usage      --> produces this usage message"/>
         <echo message=""/>
         <echo message="-------------------------------------------------------------"/>
@@ -30,7 +30,7 @@
         <delete dir="classes"/>
     </target>
 
-    <target name="compile" depends="init">
+    <target name="jar" depends="init">
         <mkdir dir="classes"/>
         <javac srcdir="src"
                source="1.4"
@@ -50,7 +50,7 @@
             excludes="**/package.html"/>
     </target>
 
-    <target name="install" depends="init,compile">
+    <target name="install" depends="init,jar">
         <copy file="lib/helmaswarm-${version}.jar"
             todir="${helma.install.dir}/lib/ext/" />
         <copy file="lib/jgroups-all.jar" 
@@ -59,7 +59,7 @@
             todir="${helma.install.dir}/lib/ext/" />
     </target>
 
-    <target name="dist" depends="init,compile">
+    <target name="package" depends="init,jar">
         <zip zipfile="helmaswarm-${version}.zip">
             <zipfileset dir="." prefix="helmaswarm-${version}"
                 includes="**" excludes="*.zip,**/*~,classes/**,CVS/**"/>
