@@ -28,6 +28,9 @@
 
     <target name="clean" depends="init">
         <delete dir="classes"/>
+        <delete>
+            <fileset dir="lib" includes="helmaswarm*.jar"/>
+        </delete>
     </target>
 
     <target name="jar" depends="init">
