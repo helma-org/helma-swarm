@@ -36,8 +36,8 @@
     <target name="jar" depends="init">
         <mkdir dir="classes"/>
         <javac srcdir="src"
-               source="1.4"
-               target="1.4"                        
+               source="1.5"
+               target="1.5"                        
                destdir="classes"
                debug="on"
                optimize="on"

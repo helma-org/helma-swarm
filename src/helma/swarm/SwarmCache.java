@@ -9,9 +9,9 @@
  * Copyright 1998-2003 Helma Software. All Rights Reserved.
  *
  * $RCSfile: SwarmCache.java,v $
- * $Author$
- * $Revision$
- * $Date$
+ * $Author: root $
+ * $Revision: 8604 $
+ * $Date: 2007-09-28 15:16:38 +0200 (Fri, 28 Sep 2007) $
  */
 
 package helma.swarm;
@@ -87,7 +87,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
         }
     }
 
-    /** 
+    /**
      * Called to shut down the cache when the application terminates.
      */
     public void shutdown() {
@@ -107,7 +107,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     }
 
     /**
-     * Called when a transaction is committed that has created, modified or 
+     * Called when a transaction is committed that has created, modified or
      * deleted one or more nodes.
      */
     public void nodesChanged(List inserted, List updated,
@@ -250,6 +250,11 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
         return cache.size();
     }
 
+    public Map<String,Object> getStatistics() {
+        Channel channel = (Channel) adapter.getTransport();
+        return channel.dumpStats();
+    }
+
     /**
      * Return an array with all objects currently contained in the cache.
      */
@@ -302,12 +307,12 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     public void setState(byte[] bytes) {
         // doesn't implement state transfer
     }
-    
+
     static class InvalidationList implements Serializable {
         Object[] keys;
         Object[] parentKeys;
         String[] types;
-        
+
         public InvalidationList(HashSet keys, HashSet parentKeys, HashSet types) {
             this.keys = keys.toArray();
             this.parentKeys = parentKeys.toArray();
